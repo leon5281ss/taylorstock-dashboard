@@ -1,0 +1,18 @@
+# Private input and generated local artifacts
+input/*.xlsx
+reports/*.xlsx
+reports/*.md
+logs/*.txt
+data_raw/*.json
+data_clean/*.csv
+
+# Python / local runtime
+__pycache__/
+*.pyc
+
+# Excel temporary lock files
+~$*.xlsx
+
+# Keep public dashboard assets
+!docs/data/stocks.json
+!docs/data/stocks-data.js
