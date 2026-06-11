@@ -1,0 +1,18 @@
+[
+  {"code":"2645","name":"長榮航太","market":"TWSE","category":"航太 / 維修 / 航空供應鏈"},
+  {"code":"2301","name":"光寶科","market":"TWSE","category":"電源 / AI伺服器 / 電子零組件"},
+  {"code":"2455","name":"全新","market":"TWSE","category":"砷化鎵 / 化合物半導體"},
+  {"code":"2371","name":"大同","market":"TWSE","category":"電力設備 / 資產題材"},
+  {"code":"1513","name":"中興電","market":"TWSE","category":"電力設備 / 重電"},
+  {"code":"3706","name":"神達","market":"TWSE","category":"AI伺服器 / 車用電子 / 電腦系統"},
+  {"code":"6215","name":"和椿","market":"TWSE","category":"自動化 / 機器人概念"},
+  {"code":"2374","name":"佳能","market":"TWSE","category":"光學 / 影像 / 相機模組"},
+  {"code":"1609","name":"大亞","market":"TWSE","category":"電線電纜 / 綠電 / 電力建設"},
+  {"code":"2408","name":"南亞科","market":"TWSE","category":"DRAM / 記憶體"},
+  {"code":"2421","name":"建準","market":"TWSE","category":"散熱 / 風扇 / AI伺服器"},
+  {"code":"6213","name":"聯茂","market":"TWSE","category":"PCB材料 / CCL"},
+  {"code":"2327","name":"國巨","market":"TWSE","category":"被動元件"},
+  {"code":"3481","name":"群創","market":"TWSE","category":"面板 / 顯示器"},
+  {"code":"4585","name":"達明","market":"TWSE","category":"協作機器人 / 工業自動化"},
+  {"code":"2382","name":"廣達","market":"TWSE","category":"AI伺服器 / 代工 / 雲端硬體"}
+]
