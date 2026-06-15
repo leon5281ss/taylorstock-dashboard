@@ -2,23 +2,65 @@ from __future__ import annotations
 
 import json
 import math
-import urllib.parse
-import urllib.request
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://api.finmindtrade.com/api/v4/data"
 
 
 def request_json(params: dict) -> dict:
-    url = f"{API}?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, headers={"User-Agent": "stock-dashboard-public"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        status=3,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    headers = {
+        "User-Agent": "stock-dashboard-public (+https://github.com/leon5281ss/taylorstock-dashboard)",
+        "Accept": "application/json,text/plain,*/*",
+    }
+    try:
+        resp = session.get(API, params=params, headers=headers, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    finally:
+        session.close()
+
+
+def load_private_positions() -> dict[str, dict]:
+    secret_b64 = os.environ.get("POSITIONS_PRIVATE_JSON_B64", "").strip()
+    if secret_b64:
+        import base64
+
+        raw = base64.b64decode(secret_b64.encode("utf-8")).decode("utf-8")
+        data = json.loads(raw)
+    else:
+        path = ROOT / "config" / "positions_private.json"
+        if not path.exists():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    out = {}
+    for item in data if isinstance(data, list) else []:
+        code = str(item.get("code", "")).strip()
+        if code:
+            out[code.zfill(4) if code.isdigit() else code] = item
+    return out
 
 
 def fetch_price(code: str) -> pd.DataFrame:
@@ -128,6 +170,7 @@ def evaluate(row: pd.Series, prev: pd.Series | None, count: int) -> tuple[str, i
 
 def main() -> None:
     watchlist = json.loads((ROOT / "config" / "watchlist_public.json").read_text(encoding="utf-8"))
+    positions = load_private_positions()
     stocks = []
     for item in watchlist:
         try:
@@ -140,11 +183,7 @@ def main() -> None:
                 "name": item["name"],
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
-                "shares": None,
-                "averageCost": None,
                 "price": fnum(row["close"]),
-                "marketValue": None,
-                "unrealizedPnl": None,
                 "unrealizedPnlRate": None,
                 "totalScore": score,
                 "status": status,
@@ -154,6 +193,7 @@ def main() -> None:
                 "updatedAt": row["date"].date().isoformat(),
                 "sourceStatus": "成功",
                 "sourceLabel": "FinMind TaiwanStockPrice",
+                "dataQualityStatus": "資料完整",
                 "technical": {
                     "open": fnum(row["open"]),
                     "high": fnum(row["high"]),
@@ -193,11 +233,7 @@ def main() -> None:
                 "name": item["name"],
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
-                "shares": None,
-                "averageCost": None,
                 "price": None,
-                "marketValue": None,
-                "unrealizedPnl": None,
                 "unrealizedPnlRate": None,
                 "totalScore": 30,
                 "status": "資料不足",
@@ -207,11 +243,25 @@ def main() -> None:
                 "updatedAt": date.today().isoformat(),
                 "sourceStatus": f"失敗：{exc}",
                 "sourceLabel": "FinMind TaiwanStockPrice",
+                "dataQualityStatus": "API 失敗",
                 "technical": {},
                 "scores": {"technical": 30, "fundamental": None, "chip": None, "news": None, "total": 30},
                 "details": {"score": {"主要理由": f"公開資料更新失敗：{exc}"}},
             }
         stocks.append(stock)
+    for stock in stocks:
+        pos = positions.get(stock["code"], {})
+        price = stock.get("price")
+        cost = pos.get("averageCost")
+        shares = pos.get("shares")
+        if price is None:
+            stock["unrealizedPnlRate"] = "缺價格" if shares else "非持倉"
+        elif not shares:
+            stock["unrealizedPnlRate"] = "非持倉"
+        elif cost in (None, 0, ""):
+            stock["unrealizedPnlRate"] = "缺成本"
+        else:
+            stock["unrealizedPnlRate"] = round((float(price) - float(cost)) / float(cost) * 100, 2)
     numeric_scores = [s["totalScore"] for s in stocks if isinstance(s.get("totalScore"), (int, float))]
     payload = {
         "generatedAt": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
