@@ -16,7 +16,7 @@ API = "https://api.finmindtrade.com/api/v4/data"
 
 def request_json(params: dict) -> dict:
     url = f"{API}?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, headers={"User-Agent": "taylorstock-dashboard-public"})
+    req = urllib.request.Request(url, headers={"User-Agent": "stock-dashboard-public"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -34,14 +34,20 @@ def fetch_price(code: str) -> pd.DataFrame:
     )
     if data.get("status") not in (200, "200") or not data.get("data"):
         raise RuntimeError(data.get("msg") or "no data")
-    df = pd.DataFrame(data["data"]).rename(columns={"max": "high", "min": "low", "Trading_Volume": "volume"})
+    df = pd.DataFrame(data["data"]).rename(
+        columns={
+            "max": "high",
+            "min": "low",
+            "Trading_Volume": "volume",
+        }
+    )
     df["date"] = pd.to_datetime(df["date"])
     for col in ["open", "high", "low", "close", "volume"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df.dropna(subset=["date", "close"]).sort_values("date").reset_index(drop=True)
 
 
-def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     for w in [5, 10, 20, 60, 120, 240]:
         df[f"ma{w}"] = df["close"].rolling(w).mean()
@@ -49,18 +55,17 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     low9 = df["low"].rolling(9).min()
     high9 = df["high"].rolling(9).max()
     rsv = (df["close"] - low9) / (high9 - low9) * 100
-    k_values, d_values, last_k, last_d = [], [], 50.0, 50.0
-    for value in rsv:
-        if pd.isna(value):
-            k_values.append(math.nan)
-            d_values.append(math.nan)
+    k, d, kp, dp = [], [], 50.0, 50.0
+    for val in rsv:
+        if pd.isna(val):
+            k.append(math.nan)
+            d.append(math.nan)
         else:
-            last_k = last_k * 2 / 3 + float(value) / 3
-            last_d = last_d * 2 / 3 + last_k / 3
-            k_values.append(last_k)
-            d_values.append(last_d)
-    df["k"] = k_values
-    df["d"] = d_values
+            kp = kp * 2 / 3 + float(val) / 3
+            dp = dp * 2 / 3 + kp / 3
+            k.append(kp)
+            d.append(dp)
+    df["k"], df["d"] = k, d
     df["j"] = 3 * df["k"] - 2 * df["d"]
     ema12 = df["close"].ewm(span=12, adjust=False).mean()
     ema26 = df["close"].ewm(span=26, adjust=False).mean()
@@ -79,7 +84,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def round_or_none(value, digits=2):
+def fnum(value, digits=2):
     if value is None or pd.isna(value):
         return None
     return round(float(value), digits)
@@ -88,12 +93,11 @@ def round_or_none(value, digits=2):
 def evaluate(row: pd.Series, prev: pd.Series | None, count: int) -> tuple[str, int, list[str], str]:
     if count < 120 or pd.isna(row.get("ma120")):
         return "資料不足", 45, ["歷史資料不足，無法完整判斷 MA120/長期趨勢"], "是"
-    status = "保留"
-    reasons: list[str] = []
-    order = {"保留": 0, "觀察": 1, "減碼警訊": 2, "出場警訊": 3, "資料不足": 4}
+    status, reasons = "保留", []
 
-    def raise_to(new_status: str, reason: str) -> None:
+    def raise_to(new_status: str, reason: str):
         nonlocal status
+        order = {"保留": 0, "觀察": 1, "減碼警訊": 2, "出場警訊": 3}
         if order[new_status] > order[status]:
             status = new_status
         reasons.append(reason)
@@ -118,93 +122,8 @@ def evaluate(row: pd.Series, prev: pd.Series | None, count: int) -> tuple[str, i
         raise_to("出場警訊", "近 120 日高點回落超過 20%")
     if not reasons:
         reasons.append("未觸發主要技術警訊")
-    score = {"保留": 88, "觀察": 72, "減碼警訊": 48, "出場警訊": 35, "資料不足": 45}[status]
-    return status, score, reasons, "是" if status in {"減碼警訊", "出場警訊", "資料不足"} else "否"
-
-
-def build_stock(item: dict) -> dict:
-    df = add_indicators(fetch_price(item["code"]))
-    row = df.iloc[-1]
-    prev = df.iloc[-2] if len(df) > 1 else None
-    status, score, reasons, manual = evaluate(row, prev, len(df))
-    return {
-        "code": item["code"],
-        "name": item["name"],
-        "market": item.get("market", "TWSE"),
-        "category": item.get("category"),
-        "shares": None,
-        "averageCost": None,
-        "price": round_or_none(row["close"]),
-        "marketValue": None,
-        "unrealizedPnl": None,
-        "unrealizedPnlRate": None,
-        "totalScore": score,
-        "status": status,
-        "technicalStatus": status,
-        "riskReasons": reasons,
-        "manualCheck": manual,
-        "updatedAt": row["date"].date().isoformat(),
-        "sourceStatus": "成功",
-        "sourceLabel": "FinMind TaiwanStockPrice",
-        "technical": {
-            "open": round_or_none(row["open"]),
-            "high": round_or_none(row["high"]),
-            "low": round_or_none(row["low"]),
-            "close": round_or_none(row["close"]),
-            "volume": round_or_none(row["volume"], 0),
-            "ma5": round_or_none(row["ma5"]),
-            "ma10": round_or_none(row["ma10"]),
-            "ma20": round_or_none(row["ma20"]),
-            "ma60": round_or_none(row["ma60"]),
-            "ma120": round_or_none(row["ma120"]),
-            "ma240": round_or_none(row["ma240"]),
-            "k": round_or_none(row["k"]),
-            "d": round_or_none(row["d"]),
-            "j": round_or_none(row["j"]),
-            "macd": round_or_none(row["macd"], 4),
-            "macdSignal": round_or_none(row["macdSignal"], 4),
-            "macdHistogram": round_or_none(row["macdHist"], 4),
-            "rsi": round_or_none(row["rsi"]),
-            "return20d": round_or_none(row["return20d"], 4),
-            "return60d": round_or_none(row["return60d"], 4),
-            "return120d": round_or_none(row["return120d"], 4),
-        },
-        "scores": {"technical": score, "fundamental": None, "chip": None, "news": None, "total": score},
-        "details": {
-            "revenue": {"基本面警訊": "公開版未揭露私有基本面資料"},
-            "chip": {"籌碼警訊": "公開版未揭露私有籌碼明細"},
-            "financial": {"財報警訊": "公開版未揭露私有財報明細"},
-            "news": {"新聞風險警訊": "公開版未揭露私有新聞明細"},
-            "score": {"總分": score, "第二階段狀態": status, "主要理由": "；".join(reasons)},
-        },
-    }
-
-
-def fallback_stock(item: dict, exc: Exception) -> dict:
-    reason = f"公開資料更新失敗：{exc}"
-    return {
-        "code": item["code"],
-        "name": item["name"],
-        "market": item.get("market", "TWSE"),
-        "category": item.get("category"),
-        "shares": None,
-        "averageCost": None,
-        "price": None,
-        "marketValue": None,
-        "unrealizedPnl": None,
-        "unrealizedPnlRate": None,
-        "totalScore": 30,
-        "status": "資料不足",
-        "technicalStatus": "資料不足",
-        "riskReasons": [reason],
-        "manualCheck": "是",
-        "updatedAt": date.today().isoformat(),
-        "sourceStatus": reason,
-        "sourceLabel": "FinMind TaiwanStockPrice",
-        "technical": {},
-        "scores": {"technical": 30, "fundamental": None, "chip": None, "news": None, "total": 30},
-        "details": {"score": {"主要理由": reason}},
-    }
+    score = {"保留": 88, "觀察": 72, "減碼警訊": 48, "出場警訊": 35}[status]
+    return status, score, reasons, "是" if status in {"減碼警訊", "出場警訊"} else "否"
 
 
 def main() -> None:
@@ -212,10 +131,88 @@ def main() -> None:
     stocks = []
     for item in watchlist:
         try:
-            stocks.append(build_stock(item))
+            df = indicators(fetch_price(item["code"]))
+            row = df.iloc[-1]
+            prev = df.iloc[-2] if len(df) > 1 else None
+            status, score, reasons, manual = evaluate(row, prev, len(df))
+            stock = {
+                "code": item["code"],
+                "name": item["name"],
+                "market": item.get("market", "TWSE"),
+                "category": item.get("category"),
+                "shares": None,
+                "averageCost": None,
+                "price": fnum(row["close"]),
+                "marketValue": None,
+                "unrealizedPnl": None,
+                "unrealizedPnlRate": None,
+                "totalScore": score,
+                "status": status,
+                "technicalStatus": status,
+                "riskReasons": reasons,
+                "manualCheck": manual,
+                "updatedAt": row["date"].date().isoformat(),
+                "sourceStatus": "成功",
+                "sourceLabel": "FinMind TaiwanStockPrice",
+                "technical": {
+                    "open": fnum(row["open"]),
+                    "high": fnum(row["high"]),
+                    "low": fnum(row["low"]),
+                    "close": fnum(row["close"]),
+                    "volume": fnum(row["volume"], 0),
+                    "ma5": fnum(row["ma5"]),
+                    "ma10": fnum(row["ma10"]),
+                    "ma20": fnum(row["ma20"]),
+                    "ma60": fnum(row["ma60"]),
+                    "ma120": fnum(row["ma120"]),
+                    "ma240": fnum(row["ma240"]),
+                    "k": fnum(row["k"]),
+                    "d": fnum(row["d"]),
+                    "j": fnum(row["j"]),
+                    "macd": fnum(row["macd"], 4),
+                    "macdSignal": fnum(row["macdSignal"], 4),
+                    "macdHistogram": fnum(row["macdHist"], 4),
+                    "rsi": fnum(row["rsi"]),
+                    "return20d": fnum(row["return20d"], 4),
+                    "return60d": fnum(row["return60d"], 4),
+                    "return120d": fnum(row["return120d"], 4),
+                },
+                "scores": {"technical": score, "fundamental": None, "chip": None, "news": None, "total": score},
+                "details": {
+                    "technical": {},
+                    "revenue": {"基本面警訊": "公開版未揭露私有基本面欄位"},
+                    "chip": {"籌碼警訊": "公開版未揭露私有籌碼欄位"},
+                    "financial": {"財報警訊": "公開版未揭露私有財報欄位"},
+                    "news": {"新聞風險警訊": "公開版未揭露私有新聞欄位"},
+                    "score": {"總分": score, "第二階段狀態": status, "主要理由": "；".join(reasons)},
+                },
+            }
         except Exception as exc:
-            stocks.append(fallback_stock(item, exc))
-    scores = [s["totalScore"] for s in stocks if isinstance(s.get("totalScore"), (int, float))]
+            stock = {
+                "code": item["code"],
+                "name": item["name"],
+                "market": item.get("market", "TWSE"),
+                "category": item.get("category"),
+                "shares": None,
+                "averageCost": None,
+                "price": None,
+                "marketValue": None,
+                "unrealizedPnl": None,
+                "unrealizedPnlRate": None,
+                "totalScore": 30,
+                "status": "資料不足",
+                "technicalStatus": "資料不足",
+                "riskReasons": [f"公開資料更新失敗：{exc}"],
+                "manualCheck": "是",
+                "updatedAt": date.today().isoformat(),
+                "sourceStatus": f"失敗：{exc}",
+                "sourceLabel": "FinMind TaiwanStockPrice",
+                "technical": {},
+                "scores": {"technical": 30, "fundamental": None, "chip": None, "news": None, "total": 30},
+                "details": {"score": {"主要理由": f"公開資料更新失敗：{exc}"}},
+            }
+        stocks.append(stock)
+    numeric_scores = [s["totalScore"] for s in stocks if isinstance(s.get("totalScore"), (int, float))]
     payload = {
         "generatedAt": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
         "privacy": {
@@ -234,7 +231,7 @@ def main() -> None:
             "reduceCount": sum(1 for s in stocks if s["status"] == "減碼警訊"),
             "manualCheckCount": sum(1 for s in stocks if s["manualCheck"] == "是"),
             "stockCount": len(stocks),
-            "averageScore": round(sum(scores) / len(scores), 1) if scores else None,
+            "averageScore": round(sum(numeric_scores) / len(numeric_scores), 1) if numeric_scores else None,
             "positionAmountsPublished": False,
         },
         "stocks": stocks,

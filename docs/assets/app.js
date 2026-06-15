@@ -40,8 +40,14 @@ function formatMoney(value) {
 }
 
 function formatPercent(value) {
-  if (!isNumber(value)) return "資料不足";
+  if (!isNumber(value)) return String(value ?? "資料不足");
   return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatPnlRate(value) {
+  if (!isNumber(value)) return String(value ?? "資料不足");
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
 }
 
 function toneClass(value) {
@@ -85,7 +91,9 @@ function escapeHtml(value) {
 }
 
 async function loadData() {
-  if (window.STOCK_DASHBOARD_DATA) return window.STOCK_DASHBOARD_DATA;
+  if (window.STOCK_DASHBOARD_DATA) {
+    return window.STOCK_DASHBOARD_DATA;
+  }
   const response = await fetch("data/stocks.json", { cache: "no-store" });
   if (!response.ok) throw new Error(`資料讀取失敗：${response.status}`);
   return response.json();
@@ -143,12 +151,13 @@ function renderTable(stocks) {
           <td class="sticky-col name-col">${escapeHtml(stock.name)}</td>
           <td class="category-cell">${escapeHtml(stock.category || "")}</td>
           <td>${formatMoney(stock.price)}</td>
-          <td class="${toneClass(stock.unrealizedPnlRate)}">${formatPercent(stock.unrealizedPnlRate)}</td>
+          <td class="${toneClass(stock.unrealizedPnlRate)}">${formatPnlRate(stock.unrealizedPnlRate)}</td>
           <td><strong>${isNumber(stock.totalScore) ? stock.totalScore : "資料不足"}</strong></td>
           <td>${statusBadge(stock.status)}</td>
           <td>${reasonList(stock, 3)}</td>
           <td>${stock.manualCheck === "是" ? "是" : "否"}</td>
           <td>${escapeHtml(stock.updatedAt || "資料不足")}</td>
+          <td>${escapeHtml(stock.dataQualityStatus || "資料不足")}</td>
           <td><button class="detail-button" type="button" data-code="${escapeHtml(stock.code)}">展開詳情</button></td>
         </tr>
       `
@@ -171,9 +180,13 @@ function renderCards(stocks) {
           <div class="card-metrics">
             <div class="metric"><span>總分</span><strong>${isNumber(stock.totalScore) ? stock.totalScore : "資料不足"}</strong></div>
             <div class="metric"><span>最新價格</span><strong>${formatMoney(stock.price)}</strong></div>
-            <div class="metric"><span>損益率</span><strong class="${toneClass(stock.unrealizedPnlRate)}">${formatPercent(stock.unrealizedPnlRate)}</strong></div>
+            <div class="metric"><span>損益率</span><strong class="${toneClass(stock.unrealizedPnlRate)}">${formatPnlRate(stock.unrealizedPnlRate)}</strong></div>
+            <div class="metric"><span>資料品質</span><strong>${escapeHtml(stock.dataQualityStatus || "資料不足")}</strong></div>
           </div>
-          <div class="card-row"><span class="muted">人工確認</span><strong>${stock.manualCheck === "是" ? "是" : "否"}</strong></div>
+          <div class="card-row">
+            <span class="muted">人工確認</span>
+            <strong>${stock.manualCheck === "是" ? "是" : "否"}</strong>
+          </div>
           ${reasonList(stock, 3)}
           <button class="detail-button mobile-toggle" type="button" data-code="${escapeHtml(stock.code)}">查看完整資料</button>
           <div class="card-details" id="card-detail-${escapeHtml(stock.code)}" hidden></div>
@@ -183,16 +196,21 @@ function renderCards(stocks) {
     .join("");
 }
 
-function displayValue(value) {
-  if (isNumber(value)) {
-    if (Math.abs(value) < 1 && value !== 0) return formatPercent(value);
-    return formatNumber(value, 2);
-  }
-  return value ?? "資料不足";
-}
-
 function renderDetailHtml(stock) {
   const sections = [
+    ["公開摘要", {
+      股票代號: stock.code,
+      股票名稱: stock.name,
+      投資分類: stock.category,
+      最新價格: stock.price,
+      損益率: stock.unrealizedPnlRate,
+      總分: stock.totalScore,
+      狀態: stock.status,
+      主要警訊摘要: topReasons(stock, 3).join("；"),
+      是否需要人工確認: stock.manualCheck,
+      更新日期: stock.updatedAt,
+      資料品質狀態: stock.dataQualityStatus,
+    }],
     ["技術面", {
       MA20: stock.technical?.ma20,
       MA60: stock.technical?.ma60,
@@ -202,9 +220,6 @@ function renderDetailHtml(stock) {
       J: stock.technical?.j,
       MACD: stock.technical?.macd,
       RSI14: stock.technical?.rsi,
-      "20日漲跌幅": stock.technical?.return20d,
-      "60日漲跌幅": stock.technical?.return60d,
-      "120日漲跌幅": stock.technical?.return120d,
     }],
     ["分數", {
       技術面: stock.scores?.technical,
@@ -231,10 +246,18 @@ function renderDetailHtml(stock) {
     <section class="detail-section">
       <h3>完整主要理由</h3>
       ${reasonList(stock)}
-      <p class="muted">資料來源與日期：${escapeHtml(stock.sourceLabel || "資料不足")}｜${escapeHtml(stock.updatedAt || "資料不足")}</p>
+      <p class="muted">資料來源與日期：${escapeHtml(stock.details?.score?.資料來源與日期 || stock.updatedAt || "資料不足")}</p>
     </section>
     <div class="detail-grid">${sectionHtml}</div>
   `;
+}
+
+function displayValue(value) {
+  if (isNumber(value)) {
+    if (Math.abs(value) < 1 && value !== 0) return formatPercent(value);
+    return formatNumber(value, 2);
+  }
+  return value ?? "資料不足";
 }
 
 function openDetail(code) {
@@ -243,7 +266,9 @@ function openDetail(code) {
   els.dialogCode.textContent = `${stock.code} | ${stock.status}`;
   els.dialogTitle.textContent = stock.name;
   els.dialogContent.innerHTML = renderDetailHtml(stock);
-  if (typeof els.dialog.showModal === "function") els.dialog.showModal();
+  if (typeof els.dialog.showModal === "function") {
+    els.dialog.showModal();
+  }
 }
 
 function toggleMobileDetail(code) {
@@ -270,6 +295,7 @@ function bindEvents() {
     state.search = event.target.value;
     render();
   });
+
   els.chips.forEach((chip) => {
     chip.addEventListener("click", () => {
       els.chips.forEach((item) => item.classList.remove("active"));
@@ -278,18 +304,24 @@ function bindEvents() {
       render();
     });
   });
+
   els.sortScore.addEventListener("click", () => {
     state.sortDesc = !state.sortDesc;
     els.sortScore.textContent = state.sortDesc ? "總分高到低" : "總分低到高";
     render();
   });
+
   document.body.addEventListener("click", (event) => {
     const detailButton = event.target.closest(".detail-button");
     if (!detailButton) return;
     const code = detailButton.dataset.code;
-    if (detailButton.classList.contains("mobile-toggle")) toggleMobileDetail(code);
-    else openDetail(code);
+    if (detailButton.classList.contains("mobile-toggle")) {
+      toggleMobileDetail(code);
+    } else {
+      openDetail(code);
+    }
   });
+
   els.closeDialog.addEventListener("click", () => els.dialog.close());
   els.refresh.addEventListener("click", () => window.location.reload());
 }
@@ -303,7 +335,7 @@ async function init() {
     render();
   } catch (error) {
     console.error(error);
-    els.generatedAt.textContent = "資料讀取失敗，請確認 docs/data/stocks.json 已產生。";
+    els.generatedAt.textContent = "資料讀取失敗，請先執行股票更新腳本。";
     els.mobileCards.innerHTML = `<article class="stock-card"><strong>無法載入資料</strong><p>${escapeHtml(error.message)}</p></article>`;
   }
 }
