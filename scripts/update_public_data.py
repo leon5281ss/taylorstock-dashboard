@@ -43,24 +43,76 @@ def request_json(params: dict) -> dict:
         session.close()
 
 
-def load_private_positions() -> dict[str, dict]:
+def normalize_code(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    upper = text.upper()
+    for suffix in (".TW", ".TWO", ".TPE"):
+        if upper.endswith(suffix):
+            text = text[: -len(suffix)]
+            break
+    try:
+        num = float(text)
+        if num.is_integer():
+            text = str(int(num))
+        else:
+            text = str(num)
+    except ValueError:
+        pass
+    text = text.strip()
+    if text.isdigit() and len(text) < 4:
+        text = text.zfill(4)
+    return text
+
+
+def first_present(record: dict, keys: list[str]) -> object:
+    for key in keys:
+        if key in record and record.get(key) not in (None, ""):
+            return record.get(key)
+    return None
+
+
+def load_private_positions() -> tuple[dict[str, dict], dict[str, object]]:
     secret_b64 = os.environ.get("POSITIONS_PRIVATE_JSON_B64", "").strip()
+    source_exists = False
+    source_readable = False
     if secret_b64:
         import base64
 
         raw = base64.b64decode(secret_b64.encode("utf-8")).decode("utf-8")
         data = json.loads(raw)
+        source_exists = True
+        source_readable = True
     else:
         path = ROOT / "config" / "positions_private.json"
         if not path.exists():
-            return {}
+            return {}, {
+                "exists": False,
+                "readable": False,
+                "count": 0,
+                "fields": [],
+                "matched_codes": [],
+                "unmatched_codes": [],
+            }
         data = json.loads(path.read_text(encoding="utf-8"))
+        source_exists = True
+        source_readable = True
     out = {}
+    fields: set[str] = set()
     for item in data if isinstance(data, list) else []:
-        code = str(item.get("code", "")).strip()
+        fields.update(item.keys())
+        code = normalize_code(first_present(item, ["code", "stockCode", "ticker", "股票代號", "代號"]))
         if code:
-            out[code.zfill(4) if code.isdigit() else code] = item
-    return out
+            out[code] = item
+    return out, {
+        "exists": source_exists,
+        "readable": source_readable,
+        "count": len(out),
+        "fields": sorted(fields),
+        "matched_codes": [],
+        "unmatched_codes": [],
+    }
 
 
 def fetch_price(code: str) -> pd.DataFrame:
@@ -170,16 +222,19 @@ def evaluate(row: pd.Series, prev: pd.Series | None, count: int) -> tuple[str, i
 
 def main() -> None:
     watchlist = json.loads((ROOT / "config" / "watchlist_public.json").read_text(encoding="utf-8"))
-    positions = load_private_positions()
+    positions, position_meta = load_private_positions()
     stocks = []
+    matched_codes: list[str] = []
+    unmatched_codes: list[str] = []
     for item in watchlist:
+        stock_code = normalize_code(item.get("code"))
         try:
-            df = indicators(fetch_price(item["code"]))
+            df = indicators(fetch_price(stock_code))
             row = df.iloc[-1]
             prev = df.iloc[-2] if len(df) > 1 else None
             status, score, reasons, manual = evaluate(row, prev, len(df))
             stock = {
-                "code": item["code"],
+                "code": stock_code,
                 "name": item["name"],
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
@@ -220,16 +275,16 @@ def main() -> None:
                 "scores": {"technical": score, "fundamental": None, "chip": None, "news": None, "total": score},
                 "details": {
                     "technical": {},
-                    "revenue": {"基本面警訊": "公開版未揭露私有基本面欄位"},
-                    "chip": {"籌碼警訊": "公開版未揭露私有籌碼欄位"},
-                    "financial": {"財報警訊": "公開版未揭露私有財報欄位"},
-                    "news": {"新聞風險警訊": "公開版未揭露私有新聞欄位"},
+                    "revenue": {},
+                    "chip": {},
+                    "financial": {},
+                    "news": {},
                     "score": {"總分": score, "第二階段狀態": status, "主要理由": "；".join(reasons)},
                 },
             }
         except Exception as exc:
             stock = {
-                "code": item["code"],
+                "code": stock_code,
                 "name": item["name"],
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
@@ -250,10 +305,15 @@ def main() -> None:
             }
         stocks.append(stock)
     for stock in stocks:
-        pos = positions.get(stock["code"], {})
+        code = normalize_code(stock["code"])
+        pos = positions.get(code, {})
         price = stock.get("price")
-        cost = pos.get("averageCost")
-        shares = pos.get("shares")
+        cost = first_present(pos, ["averageCost", "avgCost", "cost", "成本均價", "平均成本", "買進均價", "持股成本", "庫存均價"])
+        shares = first_present(pos, ["shares", "quantity", "qty", "持有股數", "股數", "庫存股數"])
+        if code in positions:
+            matched_codes.append(code)
+        else:
+            unmatched_codes.append(code)
         if price is None:
             stock["unrealizedPnlRate"] = "缺價格" if shares else "非持倉"
         elif not shares:
@@ -263,6 +323,17 @@ def main() -> None:
         else:
             stock["unrealizedPnlRate"] = round((float(price) - float(cost)) / float(cost) * 100, 2)
     numeric_scores = [s["totalScore"] for s in stocks if isinstance(s.get("totalScore"), (int, float))]
+    summary_lines = [
+        f"positions_private.json exists: {position_meta['exists']}",
+        f"positions_private.json readable: {position_meta['readable']}",
+        f"position count: {position_meta['count']}",
+        f"public stock count: {len(stocks)}",
+        f"matched codes: {', '.join(sorted(set(matched_codes))) if matched_codes else '(none)'}",
+        f"unmatched codes: {', '.join(sorted(set(unmatched_codes))) if unmatched_codes else '(none)'}",
+        f"position fields: {', '.join(position_meta['fields']) if position_meta['fields'] else '(none)'}",
+    ]
+    (ROOT / "logs").mkdir(parents=True, exist_ok=True)
+    (ROOT / "logs" / f"family_view_match_summary_{date.today().isoformat()}.txt").write_text("\n".join(summary_lines), encoding="utf-8")
     payload = {
         "generatedAt": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
         "privacy": {

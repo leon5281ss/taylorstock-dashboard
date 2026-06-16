@@ -239,7 +239,7 @@ function renderDetailHtml(stock) {
         .slice(0, 12)
         .map(([key, value]) => `<div class="kv"><span>${escapeHtml(key)}</span><strong>${escapeHtml(displayValue(value))}</strong></div>`)
         .join("");
-      return `<section class="detail-section"><h3>${title}</h3>${rows || '<p class="muted">資料不足</p>'}</section>`;
+      return `<section class="detail-section"><h3>${title}</h3>${rows || '<p class="muted">API 未取得</p>'}</section>`;
     })
     .join("");
   return `
@@ -257,6 +257,8 @@ function displayValue(value) {
     if (Math.abs(value) < 1 && value !== 0) return formatPercent(value);
     return formatNumber(value, 2);
   }
+  if (value === null || value === undefined || value === "") return "API 未取得";
+  if (typeof value === "object") return "API 未取得";
   return value ?? "資料不足";
 }
 
