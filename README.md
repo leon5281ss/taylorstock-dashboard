@@ -225,6 +225,15 @@ config/watchlist_public.json
 
 如果未來你真的要讓 GitHub Actions 讀私有 Excel，請用 GitHub Secrets，不要直接把 `input/watchlist.xlsx` 放進公開 repo。
 
+### GitHub Secrets
+
+如果你要讓 GitHub Actions 取得私有持倉與公開資料來源的完整自動更新，請在 GitHub repo 的 `Settings → Secrets and variables → Actions` 新增：
+
+- `POSITIONS_PRIVATE_JSON_B64`
+- `FINMIND_TOKEN`，如果你的 FinMind 帳號或方案需要 token
+
+目前公開資料來源設定在 `config/data_sources_public.json`，其中 `price`、`technical`、`revenue`、`chip`、`financial`、`news` 都是公開市場資料，不包含私人持倉成本或股數。
+
 ## 5-3. 如何確認自動更新成功
 
 到 GitHub：

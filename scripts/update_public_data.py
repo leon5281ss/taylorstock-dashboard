@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import math
 import os
@@ -14,9 +15,14 @@ from urllib3.util.retry import Retry
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://api.finmindtrade.com/api/v4/data"
+SOURCE_CONFIG = ROOT / "config" / "data_sources_public.json"
 
 
 def request_json(params: dict) -> dict:
+    token = os.environ.get("FINMIND_TOKEN", "").strip()
+    if token and "token" not in params:
+        params = dict(params)
+        params["token"] = token
     session = requests.Session()
     retry = Retry(
         total=3,
@@ -41,6 +47,16 @@ def request_json(params: dict) -> dict:
         return resp.json()
     finally:
         session.close()
+
+
+def safe_print(message: str) -> None:
+    print(message, flush=True)
+
+
+def load_source_config() -> dict[str, dict]:
+    if SOURCE_CONFIG.exists():
+        return json.loads(SOURCE_CONFIG.read_text(encoding="utf-8"))
+    return {}
 
 
 def normalize_code(value: object) -> str:
@@ -78,8 +94,6 @@ def load_private_positions() -> tuple[dict[str, dict], dict[str, object]]:
     source_exists = False
     source_readable = False
     if secret_b64:
-        import base64
-
         raw = base64.b64decode(secret_b64.encode("utf-8")).decode("utf-8")
         data = json.loads(raw)
         source_exists = True
@@ -113,6 +127,49 @@ def load_private_positions() -> tuple[dict[str, dict], dict[str, object]]:
         "matched_codes": [],
         "unmatched_codes": [],
     }
+
+
+def fetch_finmind_dataset(dataset: str, stock_id: str, start_date: date, end_date: date) -> pd.DataFrame:
+    params = {
+        "dataset": dataset,
+        "data_id": stock_id,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+    }
+    token_present = bool(os.environ.get("FINMIND_TOKEN", "").strip())
+    safe_print(f"FinMind request start: dataset={dataset} code={stock_id} token_present={'yes' if token_present else 'no'}")
+    try:
+        data = request_json(params)
+    except Exception as exc:
+        safe_print(f"FinMind request failed: dataset={dataset} code={stock_id} http_status=unknown rows=0 error_type={type(exc).__name__} error={exc}")
+        raise
+    status_code = data.get("status") if isinstance(data, dict) else None
+    rows = len(data.get("data") or []) if isinstance(data, dict) else 0
+    if not isinstance(data, dict):
+        safe_print(f"FinMind request failed: dataset={dataset} code={stock_id} http_status=unknown rows=0 error_type=ParseError error=API 回傳格式不符")
+        raise RuntimeError("API 回傳格式不符")
+    if status_code not in (200, "200"):
+        safe_print(f"FinMind request failed: dataset={dataset} code={stock_id} http_status={status_code} rows={rows} error_type=APIError error={data.get('msg') or 'no data returned'}")
+        raise RuntimeError(data.get("msg") or "no data returned")
+    if not data.get("data"):
+        safe_print(f"FinMind request failed: dataset={dataset} code={stock_id} http_status={status_code} rows=0 error_type=NoDataError error=no data returned")
+        raise RuntimeError(data.get("msg") or "no data returned")
+    df = pd.DataFrame(data["data"])
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    safe_print(f"FinMind request ok: dataset={dataset} code={stock_id} http_status={status_code} rows={len(df)}")
+    return df
+
+
+def row_to_dict(row: pd.Series | None, fields: list[tuple[str, str]], default_status: str, warning_key: str, warning_value: str) -> dict[str, object]:
+    if row is None or row.empty:
+        return {k: "API 未取得" for _, k in fields} | {warning_key: warning_value, "狀態": default_status}
+    out: dict[str, object] = {}
+    for source_key, target_key in fields:
+        out[target_key] = row.get(source_key, "API 未取得")
+    out[warning_key] = warning_value
+    out["狀態"] = default_status
+    return out
 
 
 def fetch_price(code: str) -> pd.DataFrame:
@@ -223,6 +280,14 @@ def evaluate(row: pd.Series, prev: pd.Series | None, count: int) -> tuple[str, i
 def main() -> None:
     watchlist = json.loads((ROOT / "config" / "watchlist_public.json").read_text(encoding="utf-8"))
     positions, position_meta = load_private_positions()
+    source_cfg = load_source_config()
+    safe_print(f"FINMIND_TOKEN present: {'yes' if os.environ.get('FINMIND_TOKEN', '').strip() else 'no'}")
+    safe_print(f"positions_private.json exists: {'yes' if position_meta['exists'] else 'no'}")
+    safe_print(f"position_count: {position_meta['count']}")
+    safe_print(f"public_stock_count: {len(watchlist)}")
+    safe_print(f"matched_count: {len([item for item in watchlist if normalize_code(item.get('code')) in positions])}")
+    unmatched_codes_preview = [normalize_code(item.get("code")) for item in watchlist if normalize_code(item.get("code")) not in positions]
+    safe_print(f"unmatched_codes: {', '.join(unmatched_codes_preview) if unmatched_codes_preview else '(none)'}")
     stocks = []
     matched_codes: list[str] = []
     unmatched_codes: list[str] = []
@@ -304,6 +369,93 @@ def main() -> None:
                 "details": {"score": {"主要理由": f"公開資料更新失敗：{exc}"}},
             }
         stocks.append(stock)
+    # Enrich with public market data from FinMind
+    for stock in stocks:
+        code = normalize_code(stock["code"])
+        if not code:
+            continue
+        try:
+            rev_df = fetch_finmind_dataset("TaiwanStockMonthRevenue", code, date.today() - timedelta(days=365), date.today())
+            rev_df = rev_df.sort_values("date")
+            rev_latest = rev_df.iloc[-1] if not rev_df.empty else None
+            rev_prev = rev_df.iloc[-2] if len(rev_df) > 1 else None
+            stock["details"]["revenue"] = {
+                "資料年月": rev_latest.get("date").date().isoformat() if rev_latest is not None and not pd.isna(rev_latest.get("date")) else "API 未取得",
+                "當月營收": rev_latest.get("revenue") if rev_latest is not None else "API 未取得",
+                "月增率": rev_latest.get("month_kd") if rev_latest is not None else "API 未取得",
+                "年增率": rev_latest.get("year_growth") if rev_latest is not None else "API 未取得",
+                "累計年增率": rev_latest.get("accumulated_year_growth") if rev_latest is not None else "API 未取得",
+                "基本面警訊": "今日暫無資料",
+                "基本面狀態": "資料完整" if rev_latest is not None else "API 未取得",
+            }
+        except Exception as exc:
+            stock["details"]["revenue"] = {"資料年月": "API 未取得", "基本面警訊": str(exc), "基本面狀態": "API 未取得"}
+        try:
+            chip_df = fetch_finmind_dataset("TaiwanStockInstitutionalInvestorsBuySell", code, date.today() - timedelta(days=45), date.today())
+            chip_df = chip_df.sort_values("date")
+            chip_latest = chip_df.iloc[-1] if not chip_df.empty else None
+            stock["details"]["chip"] = {
+                "日期": chip_latest.get("date").date().isoformat() if chip_latest is not None and not pd.isna(chip_latest.get("date")) else "API 未取得",
+                "外資買賣超": chip_latest.get("foreign_investor_buy_sell") if chip_latest is not None else "API 未取得",
+                "投信買賣超": chip_latest.get("investment_trust_buy_sell") if chip_latest is not None else "API 未取得",
+                "自營商買賣超": chip_latest.get("dealer_buy_sell") if chip_latest is not None else "API 未取得",
+                "三大法人合計買賣超": chip_latest.get("total_buy_sell") if chip_latest is not None else "API 未取得",
+                "近5日外資買賣超": "今日暫無資料",
+                "籌碼警訊": "今日暫無資料",
+                "籌碼狀態": "資料完整" if chip_latest is not None else "API 未取得",
+            }
+        except Exception as exc:
+            stock["details"]["chip"] = {"日期": "API 未取得", "籌碼警訊": str(exc), "籌碼狀態": "API 未取得"}
+        try:
+            fin_df = fetch_finmind_dataset("TaiwanStockFinancialStatements", code, date.today() - timedelta(days=1200), date.today())
+            per_df = fetch_finmind_dataset("TaiwanStockPER", code, date.today() - timedelta(days=45), date.today())
+            fin_latest = fin_df.iloc[-1] if not fin_df.empty else None
+            per_latest = per_df.iloc[-1] if not per_df.empty else None
+            stock["details"]["financial"] = {
+                "EPS": fin_latest.get("EPS") if fin_latest is not None else "API 未取得",
+                "近四季EPS": "今日暫無資料",
+                "毛利率": fin_latest.get("GrossProfitMargin") if fin_latest is not None else "API 未取得",
+                "營業利益率": fin_latest.get("OperatingIncomeRatio") if fin_latest is not None else "API 未取得",
+                "淨利率": fin_latest.get("NetIncomeRatio") if fin_latest is not None else "API 未取得",
+                "本益比": per_latest.get("PER") if per_latest is not None else "API 未取得",
+                "股價淨值比": per_latest.get("PBR") if per_latest is not None else "API 未取得",
+                "殖利率": per_latest.get("dividend_yield") if per_latest is not None else "API 未取得",
+                "財報警訊": "今日暫無資料",
+                "財報狀態": "資料完整" if (fin_latest is not None or per_latest is not None) else "API 未取得",
+            }
+        except Exception as exc:
+            stock["details"]["financial"] = {"EPS": "API 未取得", "財報警訊": str(exc), "財報狀態": "API 未取得"}
+        try:
+            news_df = fetch_finmind_dataset("TaiwanStockNews", code, date.today() - timedelta(days=90), date.today())
+            news_df = news_df.sort_values("date") if "date" in news_df.columns else news_df
+            news_latest = news_df.iloc[-1] if not news_df.empty else None
+            stock["details"]["news"] = {
+                "公司新聞標題": news_latest.get("title") if news_latest is not None else "API 未取得",
+                "新聞日期": news_latest.get("date").date().isoformat() if news_latest is not None and not pd.isna(news_latest.get("date")) else "API 未取得",
+                "新聞來源": news_latest.get("source") if news_latest is not None else "API 未取得",
+                "新聞連結": news_latest.get("link") if news_latest is not None else "API 未取得",
+                "新聞摘要": news_latest.get("summary") if news_latest is not None else "API 未取得",
+                "正面/中性/負面": news_latest.get("sentiment") if news_latest is not None else "API 未取得",
+                "是否重大利空": "今日暫無資料",
+                "產業趨勢摘要": "今日暫無資料",
+                "新聞風險警訊": "今日暫無資料",
+                "新聞風險狀態": "資料完整" if news_latest is not None else "API 未取得",
+            }
+        except Exception as exc:
+            stock["details"]["news"] = {"公司新聞標題": "API 未取得", "新聞風險警訊": str(exc), "新聞風險狀態": "API 未取得"}
+        safe_print(
+            "stock summary: "
+            + " / ".join(
+                [
+                    code,
+                    stock["name"],
+                    f"revenue_has_data={'yes' if stock.get('details', {}).get('revenue', {}).get('基本面狀態') == '資料完整' else 'no'}",
+                    f"chip_has_data={'yes' if stock.get('details', {}).get('chip', {}).get('籌碼狀態') == '資料完整' else 'no'}",
+                    f"financial_has_data={'yes' if stock.get('details', {}).get('financial', {}).get('財報狀態') == '資料完整' else 'no'}",
+                    f"news_has_data={'yes' if stock.get('details', {}).get('news', {}).get('新聞風險狀態') == '資料完整' else 'no'}",
+                ]
+            )
+        )
     for stock in stocks:
         code = normalize_code(stock["code"])
         pos = positions.get(code, {})
@@ -334,6 +486,14 @@ def main() -> None:
     ]
     (ROOT / "logs").mkdir(parents=True, exist_ok=True)
     (ROOT / "logs" / f"family_view_match_summary_{date.today().isoformat()}.txt").write_text("\n".join(summary_lines), encoding="utf-8")
+    data_sources = {
+        "price": {"enabled": True, "provider": "TWSE OpenAPI + FinMind", "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"},
+        "technical": {"enabled": True, "provider": "FinMind TaiwanStockPrice", "endpoint": "https://api.finmindtrade.com/api/v4/data"},
+        "revenue": {"enabled": True, "provider": source_cfg.get("revenue", {}).get("provider", "FinMind TaiwanStockMonthRevenue"), "endpoint": "https://api.finmindtrade.com/api/v4/data"},
+        "chip": {"enabled": True, "provider": source_cfg.get("chip", {}).get("provider", "FinMind TaiwanStockInstitutionalInvestorsBuySell"), "endpoint": "https://api.finmindtrade.com/api/v4/data"},
+        "financial": {"enabled": True, "provider": source_cfg.get("financial", {}).get("provider", "FinMind TaiwanStockFinancialStatements + PER"), "endpoint": "https://api.finmindtrade.com/api/v4/data"},
+        "news": {"enabled": True, "provider": source_cfg.get("news", {}).get("provider", "FinMind TaiwanStockNews"), "endpoint": "https://api.finmindtrade.com/api/v4/data"},
+    }
     payload = {
         "generatedAt": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
         "privacy": {
@@ -357,12 +517,14 @@ def main() -> None:
         },
         "stocks": stocks,
         "disclaimer": "本系統僅供投資追蹤與風險提示，不構成買賣建議，不得自動下單，所有決策需人工確認。",
+        "dataSources": data_sources,
     }
     out = ROOT / "docs" / "data"
     out.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     (out / "stocks.json").write_text(text, encoding="utf-8")
     (out / "stocks-data.js").write_text("window.STOCK_DASHBOARD_DATA = " + text + ";\n", encoding="utf-8")
+    safe_print(f"stocks.json written: {out / 'stocks.json'}")
 
 
 if __name__ == "__main__":

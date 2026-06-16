@@ -1,0 +1,32 @@
+{
+  "price": {
+    "enabled": true,
+    "provider": "TWSE OpenAPI + FinMind",
+    "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
+  },
+  "technical": {
+    "enabled": true,
+    "provider": "FinMind TaiwanStockPrice",
+    "endpoint": "https://api.finmindtrade.com/api/v4/data"
+  },
+  "revenue": {
+    "enabled": true,
+    "provider": "FinMind TaiwanStockMonthRevenue",
+    "endpoint": "https://api.finmindtrade.com/api/v4/data"
+  },
+  "chip": {
+    "enabled": true,
+    "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+    "endpoint": "https://api.finmindtrade.com/api/v4/data"
+  },
+  "financial": {
+    "enabled": true,
+    "provider": "FinMind TaiwanStockFinancialStatements + PER",
+    "endpoint": "https://api.finmindtrade.com/api/v4/data"
+  },
+  "news": {
+    "enabled": true,
+    "provider": "FinMind TaiwanStockNews",
+    "endpoint": "https://api.finmindtrade.com/api/v4/data"
+  }
+}
