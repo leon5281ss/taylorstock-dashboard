@@ -4,9 +4,11 @@ import base64
 import json
 import math
 import os
+from decimal import Decimal
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from collections.abc import Mapping, Sequence
 
 import pandas as pd
 import requests
@@ -51,6 +53,139 @@ def request_json(params: dict) -> dict:
 
 def safe_print(message: str) -> None:
     print(message, flush=True)
+
+
+def json_default_fallback(value: object) -> object:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (datetime, date, pd.Timestamp)):
+        return value.isoformat()
+    try:
+        import numpy as np
+
+        if isinstance(value, np.integer):
+            return int(value)
+        if isinstance(value, np.floating):
+            number = float(value)
+            return None if not math.isfinite(number) else number
+        if isinstance(value, np.bool_):
+            return bool(value)
+    except Exception:
+        pass
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    safe_print(f"Unsupported JSON type fallback: {type(value).__name__}")
+    return str(value)
+
+
+def to_json_safe(value: object) -> object:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (datetime, date, pd.Timestamp)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_json_safe(v) for v in value]
+    if isinstance(value, pd.Series):
+        return to_json_safe(value.to_dict())
+    if isinstance(value, pd.DataFrame):
+        return to_json_safe(value.to_dict(orient="records"))
+    try:
+        import numpy as np
+
+        if isinstance(value, np.integer):
+            return int(value)
+        if isinstance(value, np.floating):
+            return float(value)
+        if isinstance(value, np.bool_):
+            return bool(value)
+        if isinstance(value, np.ndarray):
+            return [to_json_safe(v) for v in value.tolist()]
+    except Exception:
+        pass
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    if hasattr(value, "item"):
+        try:
+            return to_json_safe(value.item())
+        except Exception:
+            pass
+    return str(value)
+
+
+def collect_non_json_types(value: object, path: str = "payload", found: list[tuple[str, str]] | None = None, limit: int = 10) -> list[tuple[str, str]]:
+    if found is None:
+        found = []
+    if len(found) >= limit:
+        return found
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return found
+    if isinstance(value, Decimal):
+        return found
+    if isinstance(value, (datetime, date, pd.Timestamp)):
+        return found
+    if isinstance(value, dict):
+        for key, item in value.items():
+            collect_non_json_types(item, f'{path}["{key}"]', found, limit)
+            if len(found) >= limit:
+                break
+        return found
+    if isinstance(value, (list, tuple)):
+        for idx, item in enumerate(value):
+            collect_non_json_types(item, f"{path}[{idx}]", found, limit)
+            if len(found) >= limit:
+                break
+        return found
+    if isinstance(value, pd.Series):
+        return collect_non_json_types(value.to_dict(), path, found, limit)
+    if isinstance(value, pd.DataFrame):
+        return collect_non_json_types(value.to_dict(orient="records"), path, found, limit)
+    try:
+        import numpy as np
+
+        if isinstance(value, (np.integer, np.floating, np.bool_, np.ndarray)):
+            return found
+    except Exception:
+        pass
+    try:
+        if pd.isna(value):
+            return found
+    except Exception:
+        pass
+    found.append((type(value).__name__, path))
+    return found
+
+
+def write_json_safe(path: Path, payload: object) -> None:
+    safe_payload = to_json_safe(payload)
+    unsafe = collect_non_json_types(safe_payload)
+    for type_name, found_path in unsafe:
+        safe_print(f"Non JSON-safe type found: {type_name} at {found_path}")
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(
+            safe_payload,
+            fh,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=json_default_fallback,
+        )
+    safe_print(f"JSON written: {path}")
 
 
 def load_source_config() -> dict[str, dict]:
@@ -304,7 +439,7 @@ def main() -> None:
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
                 "price": fnum(row["close"]),
-                "unrealizedPnlRate": None,
+                "gainLossRate": None,
                 "totalScore": score,
                 "status": status,
                 "technicalStatus": status,
@@ -354,7 +489,7 @@ def main() -> None:
                 "market": item.get("market", "TWSE"),
                 "category": item.get("category"),
                 "price": None,
-                "unrealizedPnlRate": None,
+                "gainLossRate": None,
                 "totalScore": 30,
                 "status": "資料不足",
                 "technicalStatus": "資料不足",
@@ -467,13 +602,13 @@ def main() -> None:
         else:
             unmatched_codes.append(code)
         if price is None:
-            stock["unrealizedPnlRate"] = "缺價格" if shares else "非持倉"
+            stock["gainLossRate"] = "缺價格" if shares else "非持倉"
         elif not shares:
-            stock["unrealizedPnlRate"] = "非持倉"
+            stock["gainLossRate"] = "非持倉"
         elif cost in (None, 0, ""):
-            stock["unrealizedPnlRate"] = "缺成本"
+            stock["gainLossRate"] = "缺成本"
         else:
-            stock["unrealizedPnlRate"] = round((float(price) - float(cost)) / float(cost) * 100, 2)
+            stock["gainLossRate"] = round((float(price) - float(cost)) / float(cost) * 100, 2)
     numeric_scores = [s["totalScore"] for s in stocks if isinstance(s.get("totalScore"), (int, float))]
     summary_lines = [
         f"positions_private.json exists: {position_meta['exists']}",
@@ -498,22 +633,21 @@ def main() -> None:
         "generatedAt": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
         "privacy": {
             "publicDashboard": True,
-            "positionAmountsPublished": False,
-            "sharesPublished": False,
-            "averageCostPublished": False,
-            "rawSourcePathsPublished": False,
+            "holdingsMasked": True,
+            "costMasked": True,
+            "rawSourcePathsMasked": True,
         },
         "summary": {
             "asOf": date.today().isoformat(),
-            "totalMarketValue": None,
-            "totalUnrealizedPnl": None,
+            "portfolioValue": None,
+            "portfolioPnl": None,
             "overallReturnRate": None,
             "exitCount": sum(1 for s in stocks if s["status"] == "出場警訊"),
             "reduceCount": sum(1 for s in stocks if s["status"] == "減碼警訊"),
             "manualCheckCount": sum(1 for s in stocks if s["manualCheck"] == "是"),
             "stockCount": len(stocks),
             "averageScore": round(sum(numeric_scores) / len(numeric_scores), 1) if numeric_scores else None,
-            "positionAmountsPublished": False,
+            "positionAmountsMasked": True,
         },
         "stocks": stocks,
         "disclaimer": "本系統僅供投資追蹤與風險提示，不構成買賣建議，不得自動下單，所有決策需人工確認。",
@@ -521,10 +655,11 @@ def main() -> None:
     }
     out = ROOT / "docs" / "data"
     out.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    (out / "stocks.json").write_text(text, encoding="utf-8")
-    (out / "stocks-data.js").write_text("window.STOCK_DASHBOARD_DATA = " + text + ";\n", encoding="utf-8")
-    safe_print(f"stocks.json written: {out / 'stocks.json'}")
+    json_path = out / "stocks.json"
+    js_path = out / "stocks-data.js"
+    write_json_safe(json_path, payload)
+    text = json_path.read_text(encoding="utf-8")
+    js_path.write_text("window.STOCK_DASHBOARD_DATA = " + text + ";\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import shutil
 import sys
 import urllib.parse
@@ -138,6 +139,72 @@ def setup_logger(log_path: Path) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     return logger
+
+
+def has_finmind_token() -> bool:
+    token = os.environ.get("FINMIND_TOKEN", "").strip()
+    return bool(token)
+
+
+def token_status_text() -> str:
+    return "已找到" if has_finmind_token() else "未找到"
+
+
+def finmind_failure_message(exc: Exception) -> str:
+    message = str(exc)
+    low = message.lower()
+    if "winerror 10013" in low or "connection failed" in low or "timed out" in low or "timeout" in low:
+        return "FinMind API 連線失敗，可能是本機網路、防火牆、防毒、VPN 或 Windows 權限阻擋"
+    return f"FinMind API 失敗：{message}"
+
+
+def write_failed_summary(
+    report_path: Path,
+    run_date: str,
+    reason: str,
+    token_found: bool,
+    log_path: Path,
+    missing_files: list[Path],
+) -> None:
+    lines = [
+        f"# 第二階段每日報表失敗摘要",
+        "",
+        f"- 執行日期：{run_date}",
+        f"- 失敗原因：{reason}",
+        f"- 是否找到 FINMIND_TOKEN：{'是' if token_found else '否'}",
+        f"- 是否有寫入 log：{'是' if log_path.exists() else '否'}",
+        "- 未產出的檔案清單：",
+    ]
+    if missing_files:
+        lines.extend(f"  - {path.name}" for path in missing_files)
+    else:
+        lines.append("  - 無")
+    lines.extend(
+        [
+            "",
+            "- 建議改用 GitHub Actions 執行。",
+            "- 若本機仍出現 WinError 10013，請視為 Windows 環境阻擋，不是報表邏輯錯誤。",
+        ]
+    )
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def precheck_finmind_connection(config: dict[str, Any], timeout: int, logger: logging.Logger) -> None:
+    token = os.environ.get("FINMIND_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("FINMIND_TOKEN 未設定")
+    url = config["api"]["finmind_data"]
+    params = {
+        "dataset": "TaiwanStockPrice",
+        "data_id": "2330",
+        "start_date": "2026-06-01",
+        "end_date": "2026-06-01",
+        "token": token,
+    }
+    try:
+        request_json(url, params, min(timeout, 10), logger)
+    except Exception as exc:
+        raise RuntimeError(finmind_failure_message(exc)) from exc
 
 
 def norm_text(value: Any) -> str:
@@ -1804,10 +1871,44 @@ def main() -> None:
         dashboard_json = export_dashboard_from_workbook(Path(args.export_dashboard_from), config.get("public_dashboard", {}))
         print(f"Dashboard JSON: {dashboard_json}")
         return
-    output_excel, daily_report, log_path = run(dry_run=args.dry_run)
-    print(f"Excel report: {output_excel}")
-    print(f"Daily report: {daily_report}")
-    print(f"Log: {log_path}")
+    config = load_config()
+    ensure_dirs(config)
+    timezone = config.get("timezone", "Asia/Taipei")
+    run_date = datetime.now(ZoneInfo(timezone)).date().isoformat()
+    log_path = ROOT / config["logs_folder"] / f"update_log_{run_date}.txt"
+    output_excel = ROOT / config["reports_folder"] / f"output_report_stage2_{run_date}.xlsx"
+    daily_report = ROOT / config["reports_folder"] / f"daily_report_stage2_{run_date}.md"
+    failed_report = ROOT / config["reports_folder"] / f"daily_report_stage2_{run_date}_failed.md"
+    try:
+        logger = setup_logger(log_path)
+        precheck_finmind_connection(config, int(config.get("request_timeout_seconds", 20)), logger)
+        output_excel, daily_report, log_path = run(dry_run=args.dry_run)
+        missing_files = [path for path in (output_excel, daily_report) if not path.exists()]
+        if missing_files:
+            write_failed_summary(
+                failed_report,
+                run_date,
+                "報表流程未完整產出",
+                has_finmind_token(),
+                log_path,
+                missing_files,
+            )
+        print(f"Excel report: {output_excel}")
+        print(f"Daily report: {daily_report}")
+        print(f"Log: {log_path}")
+    except Exception as exc:
+        failure_reason = str(exc)
+        write_failed_summary(
+            failed_report,
+            run_date,
+            failure_reason,
+            has_finmind_token(),
+            log_path,
+            [path for path in (output_excel, daily_report) if not path.exists()],
+        )
+        print(failure_reason)
+        print(f"Failed summary: {failed_report}")
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

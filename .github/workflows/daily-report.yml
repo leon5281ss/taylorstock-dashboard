@@ -1,0 +1,47 @@
+name: Daily Stock Report
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Check FinMind connection
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python -u scripts/check_finmind_connection.py
+
+      - name: Run daily report update
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python -u scripts/update_stock_data.py
+
+      - name: List generated files
+        run: |
+          echo "Generated reports:"
+          find reports -maxdepth 1 -type f \( -name 'output_report_stage2_*.xlsx' -o -name 'daily_report_stage2_*.md' -o -name 'daily_report_stage2_*_failed.md' \) -printf '%f\n' | sort
+          echo "Generated logs:"
+          find logs -maxdepth 1 -type f -name 'update_log_*.txt' -printf '%f\n' | sort
+
+      - name: Upload reports and logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-stock-report
+          path: |
+            reports/
+            logs/
+          if-no-files-found: warn
