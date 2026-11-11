@@ -40,12 +40,16 @@ def assert_public(payload, token=""):
 
 def calendar_context(client, today, start):
     issues, days = [], []
+    diagnostic = None
     try:
         rows = client.dataset("TaiwanStockTradingDate", start, today)
         days = sorted({iso_date(row["date"]) for row in rows if start <= iso_date(row["date"]) <= today})
         if not days:
             issues.append("empty_trading_calendar")
-    except (SourceError, ValueError, KeyError, TypeError):
+    except SourceError as exc:
+        diagnostic = exc.diagnostic()
+        issues.append("trading_calendar_unavailable")
+    except (ValueError, KeyError, TypeError):
         issues.append("trading_calendar_unavailable")
     closures, openings = set(), set()
     covered = False
@@ -72,18 +76,20 @@ def calendar_context(client, today, start):
         status = "trading_day" if today in days else "awaiting_confirmation"
     if not covered:
         issues.append("official_calendar_year_unverified")
-    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS]}
+    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS]}
 
 
 def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
     histories, qualities, latest = {}, {}, {}
     for kind, dataset in DATASETS.items():
+        diagnostic = None
         try:
             raw = client.dataset(dataset, start, target, item["code"])
             rows, issues = normalize_finmind(kind, raw, item["code"], start, target)
             state = "ok" if rows and rows[-1]["date"] == target else "delayed" if rows else "missing"
         except SourceError as exc:
             rows, issues, state = [], [], str(exc)
+            diagnostic = exc.diagnostic()
         histories[kind] = rows
         latest[kind] = rows[-1] if rows else None
         source = snapshots[item["market"] + "_" + kind]
@@ -98,6 +104,8 @@ def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
         if missing_dates and state == "ok":
             state = "history_gaps"
         qualities[kind] = {"status": state, "date": rows[-1]["date"] if rows else None, "source": dataset, "endpoint": FINMIND, "issues": issues, "missingDates": missing_dates, "officialCheck": comparison}
+        if diagnostic:
+            qualities[kind]["diagnostic"] = diagnostic
     blocked = [kind for kind, quality in qualities.items() if quality["status"] in ("mismatch", "invalid_or_incomplete")]
     if not calendar_ok:
         blocked = list(DATASETS)
@@ -144,12 +152,14 @@ def collect(client, watchlist, now):
                     stock["manualCheck"] = "是"
     complete_count = sum(all(value["status"] == "ok" for value in stock["quality"].values()) for stock in stocks)
     dates = sorted({value["date"] for stock in stocks for value in stock["quality"].values() if value["date"]})
+    failed_datasets = [kind for kind in DATASETS if not any(stock["latest"][kind] for stock in stocks)]
     payload = {
         "schemaVersion": 3,
         "generatedAt": now.isoformat(timespec="seconds"),
         "calendar": calendar,
         "summary": {"stockCount": len(stocks), "completeCount": complete_count, "asOf": target, "oldestDataDate": dates[0] if dates else None, "latestDataDate": dates[-1] if dates else None, "averageScore": None, "exitCount": 0, "reduceCount": 0, "manualCheckCount": sum(stock["manualCheck"] == "是" for stock in stocks), "positionAmountsPublished": False},
-        "reportStatus": "complete" if complete_count == 22 and not calendar["issues"] and target in calendar["dates"] else "partial",
+        "reportStatus": "failed" if failed_datasets else "complete" if complete_count == 22 and not calendar["issues"] and target in calendar["dates"] else "partial",
+        "failedDatasets": failed_datasets,
         "policyNews": news,
         "stocks": stocks,
         "disclaimer": "僅供公開市場資料追蹤，警報須人工核對；不自動下單。",
@@ -186,7 +196,7 @@ def markdown_report(payload):
 def write_outputs(payload, destination, token=""):
     assert_public(payload, token)
     destination.mkdir(parents=True, exist_ok=True)
-    quality = {"generatedAt": payload["generatedAt"], "reportStatus": payload["reportStatus"], "calendar": payload["calendar"], "stocks": [{"code": stock["code"], "quality": stock["quality"], "unavailableRules": stock["unavailableRules"]} for stock in payload["stocks"]], "policySources": [{"source": feed["source"], "status": feed["status"]} for feed in payload["policyNews"]]}
+    quality = {"generatedAt": payload["generatedAt"], "reportStatus": payload["reportStatus"], "failedDatasets": payload.get("failedDatasets", []), "calendar": payload["calendar"], "stocks": [{"code": stock["code"], "quality": stock["quality"], "unavailableRules": stock["unavailableRules"]} for stock in payload["stocks"]], "policySources": [{"source": feed["source"], "status": feed["status"]} for feed in payload["policyNews"]]}
     outputs = {"stocks.json": json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2), "quality.json": json.dumps(quality, ensure_ascii=False, allow_nan=False, indent=2), "daily-report.md": markdown_report(payload), "stocks-data.js": "window.STOCK_DASHBOARD_DATA = null;\n"}
     for name, content in outputs.items():
         if token and token in content:
@@ -213,8 +223,7 @@ def main():
         payload = collect(HttpClient(token), watchlist, now)
         write_outputs(payload, args.output, token)
         print(f"日報 {payload['reportStatus']}：22 檔；完整 {payload['summary']['completeCount']} 檔。")
-        return 0
+        return 1 if payload["reportStatus"] == "failed" else 0
     except Exception:
         print("收集失敗；未輸出例外原文，以避免憑證或私人資料進入日誌。請執行離線測試並檢查資料品質。")
         return 1
-

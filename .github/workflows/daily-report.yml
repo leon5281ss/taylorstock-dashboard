@@ -25,10 +25,27 @@ jobs:
           python-version: "3.12"
       - name: Offline tests
         run: python -m unittest discover -s tests -v
+      - name: FinMind 2303 preflight
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python scripts/check_finmind_connection.py
       - name: Collect 22 public symbols
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
-        run: python scripts/update_public_data.py
+        run: python scripts/update_public_data.py --output run-output
+      - name: Stage successful report
+        run: cp run-output/* docs/data/
+      - name: Safe diagnostics and quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-diagnostics
+          path: |
+            diagnostics/finmind-smoke.json
+            run-output/quality.json
+            run-output/daily-report.md
+          if-no-files-found: warn
+          retention-days: 7
       - name: Verify public artifacts
         run: python scripts/validate_public.py
       - name: Job summary
@@ -56,4 +73,3 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/deploy.yml
-

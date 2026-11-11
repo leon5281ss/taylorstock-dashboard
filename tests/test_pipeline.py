@@ -42,7 +42,7 @@ class FixtureClient:
         if dataset == DATASETS["institutional"]:
             return [{"date": "2026-11-10", "stock_id": code, "name": name, "buy": 1000, "sell": 1000} for name in ("Foreign_Investor", "Foreign_Dealer_Self", "Investment_Trust", "Dealer_self", "Dealer_Hedging")]
         if dataset == DATASETS["margin"]:
-            return []
+            return [{"date": "2026-11-10", "stock_id": code, "MarginPurchaseTodayBalance": 100, "MarginPurchaseYesterdayBalance": 100, "ShortSaleTodayBalance": 2, "ShortSaleYesterdayBalance": 2}]
         raise AssertionError(dataset)
 
     def get(self, url, params=None, **kwargs):
@@ -224,7 +224,7 @@ class PipelineTests(unittest.TestCase):
     def test_retry_and_permission_error(self):
         failures = [HTTPError(FINMIND, 429, "limited SECRET", {}, None), HTTPError(FINMIND, 503, "SECRET", {}, None)]
         with patch("market_pipeline.sources.urlopen", side_effect=failures), patch("time.sleep") as sleep:
-            with self.assertRaisesRegex(SourceError, "^http_503$"):
+            with self.assertRaisesRegex(SourceError, "^server_error$"):
                 HttpClient("SECRET", attempts=2, sleep=sleep).get(FINMIND)
             sleep.assert_called_once()
         denied = HTTPError(FINMIND, 400, "SECRET", {}, io.BytesIO(b"Your level is register. Please update your user level."))
@@ -238,7 +238,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload["reportStatus"], "partial")
         for stock in payload["stocks"]:
             self.assertIsNone(stock["totalScore"])
-            self.assertIsNone(stock["latest"]["margin"])
+            self.assertEqual(stock["latest"]["margin"]["date"], "2026-11-10")
             self.assertEqual(stock["quality"]["price"]["status"], "delayed")
         etfs = [stock for stock in payload["stocks"] if stock["code"] in ("00685L", "00981A")]
         self.assertTrue(all(stock["fundamentals"]["status"] == "not_applicable" for stock in etfs))
@@ -283,4 +283,3 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

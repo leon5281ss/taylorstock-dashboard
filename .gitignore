@@ -18,6 +18,8 @@ data_clean/
 .venv/
 *.tmp
 test-output/
+diagnostics/
+run-output/
 __pycache__/
 *.pyc
 
@@ -27,4 +29,3 @@ __pycache__/
 # Keep public dashboard assets
 !docs/data/stocks.json
 !docs/data/stocks-data.js
-

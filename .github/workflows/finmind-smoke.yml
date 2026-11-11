@@ -1,0 +1,35 @@
+name: FinMind 2303 Cloud Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/finmind-daily-22]
+    paths:
+      - scripts/market_pipeline/sources.py
+      - scripts/check_finmind_connection.py
+      - .github/workflows/finmind-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Minimal authenticated 2303 HTTP test
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python scripts/check_finmind_connection.py
+      - name: Safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finmind-safe-diagnostic
+          path: diagnostics/finmind-smoke.json
+          if-no-files-found: warn
+          retention-days: 7

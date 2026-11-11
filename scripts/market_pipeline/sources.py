@@ -22,7 +22,47 @@ HOLIDAYS = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"
 
 
 class SourceError(Exception):
-    pass
+    def __init__(self, code, http_status=None, api_status=None):
+        super().__init__(code)
+        self.code = code
+        self.http_status = http_status
+        self.api_status = api_status
+
+    def diagnostic(self):
+        return {"category": self.code, "httpStatus": self.http_status, "apiStatus": self.api_status}
+
+
+def classify_response(http_status, payload):
+    api_status = None
+    if isinstance(payload, dict):
+        status = payload.get("status")
+        if str(status).isdigit() and 100 <= int(status) <= 599:
+            api_status = int(status)
+        message = " ".join(str(payload.get(key, "")) for key in ("msg", "message", "detail", "error")).lower()
+    else:
+        message = str(payload).lower()
+    effective = api_status or http_status
+    if "tokenleveltoolow" in message or "update your user level" in message:
+        code = "permission_denied"
+    elif any(term in message for term in ("tokenillegal", "token is illegal", "invalid token", "token expired", "token has expired", "invalid jwt", "signature verification failed")):
+        code = "invalid_token"
+    elif "ip banned" in message:
+        code = "ip_blocked"
+    elif effective in (402, 429) or "requests reach the upper limit" in message or "too many requests" in message:
+        code = "rate_limited"
+    elif effective == 401:
+        code = "invalid_token"
+    elif effective == 403:
+        code = "access_denied"
+    elif effective == 422 or any(term in message for term in ("parameter", "validation error", "dataset is not", "dataset not found", "start_date", "end_date", "data_id")):
+        code = "invalid_parameters"
+    elif effective == 400:
+        code = "bad_request"
+    elif effective and effective >= 500:
+        code = "server_error"
+    else:
+        code = "api_error"
+    return SourceError(code, http_status, api_status)
 
 
 def number(value):
@@ -48,45 +88,59 @@ def iso_date(value):
 
 class HttpClient:
     def __init__(self, token="", attempts=3, sleep=time.sleep):
-        self.token = token
-        self.attempts = attempts
+        self.token = token.strip()
+        self.attempts = max(1, attempts)
         self.sleep = sleep
+        self.auth_failure = None
 
     def get(self, url, params=None, authenticated=False, as_text=False):
+        if authenticated and self.auth_failure:
+            raise self.auth_failure
         headers = {"User-Agent": "taylorstock-dashboard/3", "Accept": "application/json,application/xml,text/html"}
         if authenticated and self.token:
+            if any(character.isspace() for character in self.token) or not self.token.isascii() or self.token.startswith(('"', "'")):
+                raise SourceError("token_format_error")
             headers["Authorization"] = "Bearer " + self.token
         target = url + ("?" + urlencode(params) if params else "")
-        failure = "network_error"
+        failure = SourceError("network_error")
         for attempt in range(self.attempts):
+            retry_after = None
             try:
                 with urlopen(Request(target, headers=headers), timeout=25) as response:
                     raw = response.read(15_000_000).decode("utf-8-sig")
+                    http_status = getattr(response, "status", 200)
                 payload = raw if as_text else json.loads(raw)
-                if authenticated and isinstance(payload, dict):
-                    message = str(payload.get("msg", "")).lower()
-                    if "update your user level" in message:
-                        raise SourceError("permission_denied")
-                    if payload.get("status", 200) != 200:
-                        raise SourceError("api_error")
-                return payload
+                if authenticated and isinstance(payload, dict) and str(payload.get("status", 200)) != "200":
+                    failure = classify_response(http_status, payload)
+                else:
+                    return payload
             except HTTPError as exc:
-                if exc.code in (400, 401, 403):
-                    if authenticated:
-                        body = exc.read(4096).decode("utf-8", errors="replace").lower()
-                        if "update your user level" in body:
-                            raise SourceError("permission_denied") from None
-                    raise SourceError("http_" + str(exc.code)) from None
-                failure = "http_" + str(exc.code)
-                if exc.code not in (429, 500, 502, 503, 504):
-                    break
+                try:
+                    raw = exc.read(16384).decode("utf-8", errors="replace")
+                    try:
+                        payload = json.loads(raw)
+                    except ValueError:
+                        payload = raw
+                except (OSError, AttributeError):
+                    payload = ""
+                finally:
+                    exc.close()
+                failure = classify_response(exc.code, payload)
+                header = exc.headers.get("Retry-After") if exc.headers else None
+                if header and header.isdigit():
+                    retry_after = min(int(header), 60)
             except (URLError, TimeoutError, OSError):
-                failure = "network_error"
+                failure = SourceError("network_error")
             except (ValueError, UnicodeError):
-                failure = "invalid_response"
-            if attempt + 1 < self.attempts:
-                self.sleep(2 ** attempt)
-        raise SourceError(failure) from None
+                failure = SourceError("invalid_response")
+            if authenticated and failure.code in ("invalid_token", "ip_blocked", "rate_limited"):
+                if failure.code != "rate_limited" or (failure.api_status or failure.http_status) != 429:
+                    self.auth_failure = failure
+            retryable = failure.code in ("network_error", "server_error") or (failure.code == "rate_limited" and (failure.api_status or failure.http_status) == 429)
+            if not retryable or attempt + 1 >= self.attempts:
+                raise failure from None
+            self.sleep(retry_after if retry_after is not None else 2 ** attempt)
+        raise failure from None
 
     def dataset(self, dataset, start, end, code=None):
         params = {"dataset": dataset, "start_date": start, "end_date": end}
@@ -240,4 +294,3 @@ def government_bank(client, code, start, end, enabled=False):
         return {"status": "adapter_pending", "label": "待接入驗證", "source": source, "date": max((row["date"] for row in aggregate), default=None), "netBuy": None, "reason": "已取得回應，需驗證單位及欄位後才啟用數值"}
     except SourceError as exc:
         return {"status": str(exc), "label": "無權限" if str(exc) == "permission_denied" else "查詢失敗", "source": source, "date": None, "netBuy": None}
-
