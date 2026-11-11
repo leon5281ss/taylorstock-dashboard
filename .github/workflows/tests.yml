@@ -20,4 +20,5 @@ jobs:
       - run: python -m compileall -q scripts
       - run: python scripts/validate_public.py
       - run: node --check docs/assets/app.js
+      - run: node tests/test_ui.cjs
 

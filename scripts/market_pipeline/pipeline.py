@@ -6,6 +6,8 @@ from pathlib import Path
 
 from .alerts import evaluate
 from .news import collect_news
+from .monitor import market_monitor, related_industry_news
+from .risk import classify_stock
 from .sources import DATASETS, FINMIND, HOLIDAYS, HttpClient, SourceError, compare_official, government_bank, iso_date, normalize_finmind, official_record, official_snapshots
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -135,7 +137,7 @@ def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
     }
 
 
-def collect(client, watchlist, now):
+def collect(client, watchlist, now, industry_items=None):
     today = now.date().isoformat()
     start = (now.date() - timedelta(days=240)).isoformat()
     calendar = calendar_context(client, today, start)
@@ -144,12 +146,9 @@ def collect(client, watchlist, now):
     stocks = [collect_stock(client, item, target, start, calendar["dates"], snapshots, not calendar["issues"] and target in calendar["dates"]) for item in watchlist]
     news = collect_news(client, now)
     for stock in stocks:
-        for feed in news:
-            for item in feed["items"]:
-                if item["isRecent"]:
-                    stock["alerts"].append({"rule": "policy_news", "message": item["title"], "date": item["publishedDate"], "source": feed["source"], "url": item["url"]})
-                    stock["riskReasons"].append("政策公告待確認：" + item["title"])
-                    stock["manualCheck"] = "是"
+        stock["alerts"].extend(related_industry_news(stock, industry_items or []))
+        stock["industryNewsStatus"] = "not_connected" if industry_items is None else "provided_candidates"
+        classify_stock(stock)
     complete_count = sum(all(value["status"] == "ok" for value in stock["quality"].values()) for stock in stocks)
     dates = sorted({value["date"] for stock in stocks for value in stock["quality"].values() if value["date"]})
     failed_datasets = [kind for kind in DATASETS if not any(stock["latest"][kind] for stock in stocks)]
@@ -161,10 +160,14 @@ def collect(client, watchlist, now):
         "reportStatus": "failed" if failed_datasets else "complete" if complete_count == 22 and not calendar["issues"] and target in calendar["dates"] else "partial",
         "failedDatasets": failed_datasets,
         "policyNews": news,
+        "marketMonitor": market_monitor(news),
+        "riskModelVersion": 1,
         "stocks": stocks,
         "disclaimer": "僅供公開市場資料追蹤，警報須人工核對；不自動下單。",
     }
     assert_public(payload, client.token)
+    payload["summary"]["qualityReviewCount"] = sum(stock["qualityReviewRequired"] for stock in stocks)
+    payload["summary"]["riskCounts"] = {level: sum(stock["riskLevel"] == level for stock in stocks) for level in ("高", "中", "一般觀察")}
     return payload
 
 
@@ -179,17 +182,19 @@ def markdown_report(payload):
     lines.extend(["", "來源：FinMind HTTP API，資料集 " + "、".join(DATASETS.values()), "", "## 警報及品質", ""])
     for stock in payload["stocks"]:
         lines.append(f"### {stock['code']} {stock['name']}")
-        lines.append("八大官股：無權限（Sponsor 待接入）；不提供推估買賣超。")
+        lines.append(f"風險級別：{stock.get('riskLevel', '未評估')}；人工確認：{stock['manualCheck']}；資料限制：{stock.get('riskAssessment', '未評估')}")
+        lines.append("人工確認原因：" + "、".join(stock.get("manualCheckReasons", [])))
         for kind, quality in stock["quality"].items():
             check = quality["officialCheck"]
             lines.append(f"- {kind}：{quality['status']}，日期 {quality['date']}，來源 {quality['source']}；官方核對 {check['status']}（官方日期 {check['officialDate']}；{check['source']}）；{check.get('reason', '')}；缺漏 {quality['missingDates']}；異常 {quality['issues']}")
         lines.extend("- " + cell(alert["date"]) + " " + cell(alert["message"]) + "（" + cell(alert["source"]) + "）" for alert in stock["alerts"])
         lines.append("- 未能計算的規則：" + ("、".join(stock["unavailableRules"]) or "無"))
         lines.append("")
-    lines.extend(["## 官方政策公告", "", "僅為關鍵字候選，需閱讀原文；無日期的公告不當作今日新事件。", ""])
-    for feed in payload["policyNews"]:
+    monitor = payload.get("marketMonitor") or market_monitor(payload["policyNews"])
+    lines.extend(["## 市場政策監控", "", monitor["notice"], "八大官股：無權限（Sponsor 待接入）；不提供推估買賣超。", ""])
+    for feed in monitor["sources"]:
         lines.append(f"- {feed['source']}：{feed['status']}；{feed['url']}")
-        lines.extend(f"  - {item['publishedDate'] or '發布日待確認'}：{cell(item['title'])} {item['url']}" for item in feed["items"])
+    lines.extend(f"- {item['publishedDate'] or '發布日待確認'}：{cell(item['title'])} {item['url']}" for item in monitor["items"])
     return "\n".join(lines) + "\n"
 
 
