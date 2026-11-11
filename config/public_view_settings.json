@@ -1,9 +1,10 @@
 {
   "viewMode": "family",
-  "showPnlRate": true,
+  "showPnlRate": false,
   "showCostBasis": false,
   "showShares": false,
   "showMarketValue": false,
   "showUnrealizedPnlAmount": false,
   "showTotalAssets": false
 }
+

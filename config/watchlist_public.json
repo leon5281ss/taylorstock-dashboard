@@ -44,7 +44,7 @@
   {
     "code": "1815",
     "name": "富喬",
-    "market": "TWSE",
+    "market": "TPEX",
     "category": "玻纖布 / PCB材料"
   },
   {
@@ -97,12 +97,14 @@
   },
   {
     "code": "00685L",
+    "instrumentType": "leveraged_etf",
     "name": "群益臺灣加權正2",
     "market": "TWSE",
     "category": "ETF / 台股槓桿正2"
   },
   {
     "code": "00981A",
+    "instrumentType": "active_etf",
     "name": "主動統一台股增長",
     "market": "TWSE",
     "category": "ETF / 台股主動式"
@@ -132,3 +134,4 @@
     "category": "電源 / AI伺服器 / 電子零組件"
   }
 ]
+

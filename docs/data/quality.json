@@ -1,0 +1,1115 @@
+{
+  "generatedAt": null,
+  "reportStatus": "not_collected",
+  "calendar": {
+    "requestedDate": null,
+    "targetDate": null,
+    "status": "not_collected",
+    "dates": [],
+    "issues": [],
+    "sources": []
+  },
+  "stocks": [
+    {
+      "code": "3231",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "3481",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "3706",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "4585",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "6197",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "6213",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "6753",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "1815",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.tpex.org.tw/openapi/v1/tpex_3insti_daily_trading",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_balance",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2303",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2317",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2327",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2382",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2455",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2478",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2481",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "3090",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "00685L",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "00981A",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "1301",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "1312",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2009",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    },
+    {
+      "code": "2301",
+      "quality": {
+        "price": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockPrice",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "institutional": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockInstitutionalInvestorsBuySell",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        },
+        "margin": {
+          "status": "not_collected",
+          "date": null,
+          "source": "TaiwanStockMarginPurchaseShortSale",
+          "endpoint": "https://api.finmindtrade.com/api/v4/data",
+          "issues": [],
+          "missingDates": [],
+          "officialCheck": {
+            "source": "https://www.twse.com.tw",
+            "status": "unverified",
+            "officialDate": null,
+            "reason": "not_collected"
+          }
+        }
+      },
+      "unavailableRules": [
+        "尚未收集"
+      ]
+    }
+  ],
+  "policySources": []
+}
