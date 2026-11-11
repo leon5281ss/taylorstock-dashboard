@@ -12,7 +12,7 @@ FEEDS = {
     "國安基金官方公告": "https://www.mof.gov.tw/multiplehtml/383",
     "金管會": "https://www.fsc.gov.tw/ch/home.jsp?id=96&parentpath=0,2",
 }
-KEYWORDS = ("國安基金", "金融安定基金", "護盤", "穩定股市", "穩定市場", "關稅", "證交稅", "信用交易", "融資融券", "融券", "借券", "放空", "重大政策")
+KEYWORDS = ("國安基金", "金融安定基金", "護盤", "穩定股市", "穩定市場", "八大官股", "公股行庫", "官股銀行", "關稅", "證交稅", "信用交易", "融資融券", "融券", "借券", "放空", "重大政策")
 
 
 class AnnouncementParser(HTMLParser):

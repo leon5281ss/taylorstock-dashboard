@@ -20,6 +20,11 @@
 
     <main>
       <section id="summaryCards" class="summary-grid" aria-label="投資組合總覽"></section>
+      <section class="desktop-panel" aria-label="市場政策監控" style="display:block">
+        <h2>市場政策監控</h2>
+        <p>國安基金、政府護盤、八大官股：市場公告不計入個股警報。公告不代表已進場護盤。</p>
+        <div id="marketMonitor"></div>
+      </section>
 
       <section class="toolbar" aria-label="篩選與搜尋">
         <div class="search-wrap">
@@ -31,6 +36,9 @@
           <button class="chip" data-filter="觀察" type="button">觀察</button>
           <button class="chip" data-filter="資料不足" type="button">資料不足</button>
           <button class="chip" data-filter="人工確認" type="button">需要人工確認</button>
+          <button class="chip" data-filter="高" type="button">高風險</button>
+          <button class="chip" data-filter="中" type="button">中風險</button>
+          <button class="chip" data-filter="一般觀察" type="button">一般觀察</button>
         </div>
       </section>
 
@@ -52,6 +60,7 @@
                 <th>投信（股）</th>
                 <th>自營商（股）</th>
                 <th>警報數</th>
+                <th>風險／人工確認</th>
                 <th>更新日期</th>
                 <th>資料品質</th>
                 <th>詳情</th>

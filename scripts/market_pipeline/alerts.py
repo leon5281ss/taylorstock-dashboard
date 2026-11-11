@@ -27,6 +27,7 @@ def evaluate(price, institutional, margin, calendar, target, blocked=()):
             unavailable.append(field + "_streak")
         elif streak >= 3:
             emit(field + "_streak", f"{'外資' if field == 'foreign' else '投信'}連續 {streak} 個交易日{'買超' if sign == 1 else '賣超'}", "TaiwanStockInstitutionalInvestorsBuySell")
+            alerts[-1]["direction"] = "buy" if sign == 1 else "sell"
     current = prices.get(target)
     previous = prices.get(days[-2]) if len(days) >= 2 else None
     if not current or "price" in blocked or not days or days[-1] != target:

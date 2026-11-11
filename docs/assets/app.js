@@ -5,8 +5,24 @@ const numeric = (value) => typeof value === "number" && Number.isFinite(value);
 const format = (value, digits = 2) => numeric(value) ? value.toLocaleString("zh-TW", { maximumFractionDigits: digits }) : "缺資料";
 const paragraph = (text) => "<p>" + escapeHtml(text) + "</p>";
 const button = (code) => '<button class="detail-button" data-code="' + escapeHtml(code) + '">資料與警報</button>';
+const safeLink = (url, title) => /^https:\/\//i.test(url || "") ? '<a target="_blank" rel="noopener noreferrer" href="' + escapeHtml(url) + '">' + escapeHtml(title) + '</a>' : escapeHtml(title);
+
+function renderMarket() {
+  const monitor = state.data.marketMonitor;
+  if (!monitor) {
+    element("marketMonitor").textContent = "等待新版資料收集；舊報告尚未重新分類，勿將舊人工確認數當成新版結果。";
+    return;
+  }
+  element("marketMonitor").innerHTML = paragraph("八大官股買賣超：" + monitor.governmentBank.label + "（Sponsor 待接入，不填推估值）") +
+    monitor.sources.map(feed => paragraph(feed.source + "：" + feed.status + "｜查詢時間：" + feed.checkedAt)).join("") +
+    ["國安基金", "政府護盤", "八大官股", "其他市場政策"].map(topic => {
+      const items = monitor.items.filter(item => item.topics[0] === topic);
+      return "<h3>" + topic + "</h3>" + (items.length ? items.map(item => "<p>" + escapeHtml((item.publishedDate || "日期待確認") + "｜") + safeLink(item.url, item.title) + "</p>").join("") : paragraph("本次未取得候選公告；請查看來源狀態，不代表沒有事件。"));
+    }).join("");
+}
 
 function render() {
+  renderMarket();
   const summary = state.data.summary;
   element("generatedAt").textContent = "目標交易日：" + (summary.asOf || "尚未收集") + "｜產生：" + (state.data.generatedAt || "尚未執行") + "｜" + state.data.reportStatus;
   element("summaryCards").innerHTML = [
@@ -14,20 +30,21 @@ function render() {
     ["需人工確認", summary.manualCheckCount], ["八大官股", "無權限"],
   ].map(([label, value]) => '<article class="summary-card"><span>' + escapeHtml(label) + "</span><strong>" + escapeHtml(value) + "</strong></article>").join("");
   const rows = state.stocks.filter(stock => (stock.code + " " + stock.name).includes(state.search))
-    .filter(stock => state.filter === "全部" || (state.filter === "人工確認" ? stock.manualCheck === "是" : stock.status === state.filter))
+    .filter(stock => state.filter === "全部" || (state.filter === "人工確認" ? stock.manualCheck === "是" : stock.status === state.filter || stock.riskLevel === state.filter))
     .sort((first, second) => state.sortDesc ? second.alerts.length - first.alerts.length : first.alerts.length - second.alerts.length);
   element("stockTableBody").innerHTML = rows.map(stock => {
     const price = stock.latest.price;
     const institutional = stock.latest.institutional;
     return "<tr>" + [stock.code, stock.name, stock.category, format(price?.close), format(price?.volume, 0),
       format(institutional?.foreign, 0), format(institutional?.trust, 0), format(institutional?.dealer, 0),
-      stock.alerts.length, price?.date || "缺資料", stock.dataQualityStatus]
+      stock.alerts.length, (stock.riskLevel || "未評估") + "／" + stock.manualCheck, price?.date || "缺資料", stock.dataQualityStatus]
       .map(value => "<td>" + escapeHtml(value) + "</td>").join("") + "<td>" + button(stock.code) + "</td></tr>";
   }).join("");
   element("mobileCards").innerHTML = rows.map(stock => '<article class="stock-card"><h3>' + escapeHtml(stock.code + " " + stock.name) + "</h3>" +
     paragraph("收盤：" + format(stock.latest.price?.close) + " 元｜" + (stock.latest.price?.date || "缺資料")) +
     paragraph("成交量：" + format(stock.latest.price?.volume, 0) + " 股") +
-    paragraph(stock.dataQualityStatus + "｜警報 " + stock.alerts.length + " 則") + button(stock.code) + "</article>").join("");
+    paragraph(stock.dataQualityStatus + "｜個股警報 " + stock.alerts.length + " 則") +
+    paragraph("風險：" + (stock.riskLevel || "未評估") + "｜人工確認：" + stock.manualCheck) + button(stock.code) + "</article>").join("");
 }
 
 function detail(code) {
@@ -52,10 +69,13 @@ function detail(code) {
       paragraph("缺漏日期：" + (quality.missingDates.join("、") || "無已識別缺漏")) + "</section>");
   }
   sections.push('<section class="detail-section"><h3>警報</h3>' +
+    paragraph("風險：" + (stock.riskLevel || "未評估") + "；一般觀察不等於安全，缺資料不代表低風險。") +
+    paragraph("人工確認原因：" + ((stock.manualCheckReasons || []).join("、") || "無")) +
+    paragraph("資料限制：" + (stock.riskAssessment || "未評估") + "｜" + (stock.qualityNotices || []).join("、")) +
+    paragraph("產業新聞：" + (stock.industryNewsStatus || "not_connected") + "；僅接收有明確股票關聯證據的新聞，不把全市場政策灌入。") +
     (stock.alerts.length ? stock.alerts.map(alert => paragraph(alert.date + "｜" + alert.message + "｜" + alert.source)).join("") : paragraph("未產生警報；請同時檢查未能計算的規則。")) +
     paragraph("未能計算：" + (stock.unavailableRules.join("、") || "無")) +
     paragraph("MA20：" + format(stock.technical.ma20) + "｜MA60：" + format(stock.technical.ma60)) +
-    paragraph("八大官股：" + stock.governmentBank.label) +
     paragraph(stock.fundamentals.reason + "；不提供綜合分數。") + "</section>");
   element("dialogCode").textContent = stock.code;
   element("dialogTitle").textContent = stock.name;
