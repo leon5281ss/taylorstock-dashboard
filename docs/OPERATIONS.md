@@ -70,6 +70,27 @@ python scripts/probe_official.py
 
 FINMIND_TOKEN 缺失時程式退出 2，避免把舊資料當成功新報告；其他致命錯誤退出 1，僅輸出安全錯誤類別。取得部分資料時正常產生 partial 報告，明確保留缺漏。完整 22 檔報告指每檔都有列，不代表所有來源在 21:00 必然已發布。
 
+## HTTP 診斷與失敗門檻（PR #1 修正）
+
+先在 feat/finmind-daily-22 執行 FinMind 2303 Cloud Smoke（修改來源或診斷程式時自動觸發，亦可手動執行）。只查聯電最近 15 日至昨日的價格、法人、資券及交易日，遇第一項失敗即停止；價格失敗時最多追加一次相同參數的匿名對照，不將匿名資料當成正式日報。每日工作流程亦先做此預檢。
+
+認證維持 HTTP Authorization Bearer，Token 不進 URL。診斷只保留資料集、日期、列數、固定錯誤分類及 HTTP/API 狀態碼；不輸出回應原文、標頭、Token 片段或私人資料。HTTP 200 內的 API 失敗也會被攔截。
+
+| 分類 | 處理 |
+|---|---|
+| invalid_token / token_format_error / missing_token | 至 GitHub Settings → Secrets and variables → Actions 更新 FINMIND_TOKEN；只填 Token，不加 Bearer、引號或換行。不要貼到聊天、Issue 或程式碼。 |
+| permission_denied | FinMind 會員權限不足；核對帳戶及資料集方案，不用假值補齊。 |
+| invalid_parameters | 檢查 dataset、data_id 與日期，不盲目重試。 |
+| rate_limited | 402 配額耗盡停止；429 有上限退避重試並尊重數字 Retry-After（最多 60 秒）。 |
+| network_error / server_error | 有上限退避重試，仍失敗則標記，不輸出底層例外。 |
+| ip_blocked / access_denied / bad_request | 分別代表封鎖、未能確認原因的拒絕及未能分類的 400；不可直接推論為 Token 無效。 |
+
+Token 無效、IP 封鎖或配額耗盡會中止同一 client 後續認證呼叫，避免 22 檔重複無效請求。依 [FinMind 官方封鎖政策](https://finmind.github.io/BanIPPolicy/)，認證或權限錯誤不應反覆重試。
+
+任一核心資料類別（價格、法人、資券）全 22 檔皆無可用記錄時，reportStatus=failed 並退出 1；不再以 partial 掩蓋全面失敗。零檔完全齊備但各類仍有延遲有效記錄時可為 partial，保留個別日期及缺漏。官方核對、投信差異與 ETF 缺值規則不變。
+
+當次輸出先寫入 run-output/，僅收集成功才複製至 Pages 資料目錄。失敗保留安全診斷與當次品質報告 artifact，不發布失敗資料，也不把版本庫舊檔當本次結果。預檢失敗時尚未收集 22 檔，因此只會有診斷 artifact，沒有偽造的完整日報。
+
 ## 參考規格
 
 - [FinMind 官方籌碼 API](https://finmind.github.io/tutor/TaiwanMarket/Chip/)
@@ -78,4 +99,3 @@ FINMIND_TOKEN 缺失時程式退出 2，避免把舊資料當成功新報告；�
 - [財政部 RSS](https://www.mof.gov.tw/Rss)
 - [國安基金官方新聞稿](https://www.mof.gov.tw/multiplehtml/383)
 - [金管會官方新聞稿](https://www.fsc.gov.tw/ch/home.jsp?id=96&parentpath=0,2)
-

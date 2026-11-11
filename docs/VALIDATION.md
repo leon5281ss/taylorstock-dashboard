@@ -30,11 +30,18 @@ TWSE STOCK_DAY_ALL 快照實測晚一天，已增加日期指定 MI_INDEX，驗�
 
 ## 尚須在 GitHub 檢查
 
-- FINMIND_TOKEN Secret 內容不讀取、不下載；須由 Actions 真正執行才能確認可用。
+## PR #1 HTTP 失敗修復驗證（2026-11-11）
+
+- 原 run 43033368820 將 HTTP 400 統一標記，且全空報告仍退出 0；不能從舊日誌區分認證、權限或參數。
+- [2303 雲端 HTTP 實測 43035739568](https://github.com/leon5281ss/taylorstock-dashboard/actions/runs/43035739568)：2026-10-27 至 2026-11-10 的 TaiwanStockPrice，Bearer 認證收到 HTTP 400 / API 400，安全分類 invalid_token；相同參數匿名對照成功。證實目前 Actions Secret 的憑證被 API 拒絕，不是本次查詢參數或網路連線失敗。
+- 首項失敗即停止，未繼續以無效憑證查法人、資券及交易日；不得聲稱這些雲端認證查詢已成功。Secret 本文沒有讀取或輸出。
+- 雲端預檢正確退出 1 並保存 finmind-safe-diagnostic artifact；沒有改用匿名資料假裝正式認證成功，也沒有部署。
+- 本機 36 項離線測試及 compileall 通過：涵蓋 Token、權限、參數、配額、429 重試、網路、HTTP 200 內 API 錯誤、安全診斷、認證熔斷、22 檔全面失敗與 CLI 非零結束。
+- 尚需使用者在 GitHub Actions Secret 更新有效 FINMIND_TOKEN，重新執行本分支 smoke；四項通過後再手動執行 Daily Stock Report，才能驗證完整 22 檔認證資料。不需合併 main。
+
 - GitHub 排程精準時間及未來延遲資料補齊無法由一次測試保證。
 - 未部署開發分支、未合併 main；Pages 部署僅允許 main。
 - 八大官股目前無 Sponsor 權限，不做虛構測試成功聲明。
 - 未使用真實私人持股測試；私人費稅計算只用虛構單元測試資料。
 
 實測數據存於本機被忽略的 test-output/；版本庫公開初始資料仍為 null，不將未核對的測試快照當成正式日報。
-
