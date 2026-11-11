@@ -1,26 +1,25 @@
-from __future__ import annotations
+import os
+from datetime import datetime, timedelta
 
-from datetime import datetime
-
-from zoneinfo import ZoneInfo
-
-from update_stock_data import ROOT, has_finmind_token, load_config, precheck_finmind_connection, setup_logger
+from market_pipeline.pipeline import TAIPEI
+from market_pipeline.sources import HttpClient, SourceError
 
 
-def main() -> None:
-    config = load_config()
-    timezone = config.get("timezone", "Asia/Taipei")
-    run_date = datetime.now(ZoneInfo(timezone)).date().isoformat()
-    log_path = ROOT / config["logs_folder"] / f"update_log_{run_date}.txt"
-    logger = setup_logger(log_path)
-    print(f"FINMIND_TOKEN: {'found' if has_finmind_token() else 'missing'}")
+def main():
+    token = os.environ.get("FINMIND_TOKEN", "").strip()
+    if not token:
+        print("FINMIND_TOKEN 未設定")
+        return 2
+    today = datetime.now(TAIPEI).date()
     try:
-        precheck_finmind_connection(config, int(config.get("request_timeout_seconds", 20)), logger)
-        print("FinMind API connection check passed")
-    except Exception as exc:
-        print(str(exc))
-        raise SystemExit(1) from exc
+        rows = HttpClient(token).dataset("TaiwanStockPrice", (today - timedelta(days=14)).isoformat(), today.isoformat(), "2303")
+        print("FinMind HTTP connected" if rows else "FinMind HTTP connected；查詢區間無資料")
+        return 0
+    except SourceError as exc:
+        print("FinMind connection: " + str(exc))
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
+

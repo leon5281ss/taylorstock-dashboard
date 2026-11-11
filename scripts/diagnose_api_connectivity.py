@@ -75,7 +75,7 @@ def main() -> None:
     lines.append(f"Executable: {sys.executable}")
     lines.append(f"requests available: {'yes' if has_module('requests') else 'no'}")
     lines.append(f"urllib available: yes")
-    lines.append(f"proxy settings: {json.dumps({k: v for k, v in os.environ.items() if k.lower().endswith('_proxy')}, ensure_ascii=False)}")
+    lines.append("proxy configured: " + str(any(key.lower().endswith("_proxy") for key in os.environ)))
     lines.append("")
     for label, url in URLS:
         lines.append(f"[{label}] {url}")
@@ -92,3 +92,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

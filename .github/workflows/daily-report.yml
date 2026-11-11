@@ -2,46 +2,58 @@ name: Daily Stock Report
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0,20,40 13 * * 1-5"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-report-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  update-report:
+  collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 18
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-
-      - name: Check FinMind connection
+          python-version: "3.12"
+      - name: Offline tests
+        run: python -m unittest discover -s tests -v
+      - name: Collect 22 public symbols
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
-        run: python -u scripts/check_finmind_connection.py
-
-      - name: Run daily report update
-        env:
-          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
-        run: python -u scripts/update_stock_data.py
-
-      - name: List generated files
-        run: |
-          echo "Generated reports:"
-          find reports -maxdepth 1 -type f \( -name 'output_report_stage2_*.xlsx' -o -name 'daily_report_stage2_*.md' -o -name 'daily_report_stage2_*_failed.md' \) -printf '%f\n' | sort
-          echo "Generated logs:"
-          find logs -maxdepth 1 -type f -name 'update_log_*.txt' -printf '%f\n' | sort
-
-      - name: Upload reports and logs
-        uses: actions/upload-artifact@v4
+        run: python scripts/update_public_data.py
+      - name: Verify public artifacts
+        run: python scripts/validate_public.py
+      - name: Job summary
+        run: cat docs/data/daily-report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
         with:
-          name: daily-stock-report
+          name: public-daily-report
           path: |
-            reports/
-            logs/
-          if-no-files-found: warn
+            docs/data/daily-report.md
+            docs/data/quality.json
+            docs/data/stocks.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-site
+          path: docs/
+          if-no-files-found: error
+          retention-days: 2
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: collect
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+

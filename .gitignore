@@ -7,6 +7,17 @@ data_raw/*.json
 data_clean/*.csv
 
 # Python / local runtime
+.env
+.env.*
+config/positions_private.json
+private/
+reports/
+logs/
+data_raw/
+data_clean/
+.venv/
+*.tmp
+test-output/
 __pycache__/
 *.pyc
 
@@ -16,3 +27,4 @@ __pycache__/
 # Keep public dashboard assets
 !docs/data/stocks.json
 !docs/data/stocks-data.js
+

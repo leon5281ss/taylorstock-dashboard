@@ -28,10 +28,8 @@
         </div>
         <div class="filters" aria-label="狀態篩選">
           <button class="chip active" data-filter="全部" type="button">全部</button>
-          <button class="chip" data-filter="保留" type="button">保留</button>
           <button class="chip" data-filter="觀察" type="button">觀察</button>
-          <button class="chip" data-filter="減碼警訊" type="button">減碼警訊</button>
-          <button class="chip" data-filter="出場警訊" type="button">出場警訊</button>
+          <button class="chip" data-filter="資料不足" type="button">資料不足</button>
           <button class="chip" data-filter="人工確認" type="button">需要人工確認</button>
         </div>
       </section>
@@ -39,7 +37,7 @@
       <section class="desktop-panel" aria-label="桌機版股票表格">
         <div class="table-tools">
           <h2>追蹤清單</h2>
-          <button id="sortScoreButton" class="secondary-button" type="button">總分高到低</button>
+          <button id="sortScoreButton" class="secondary-button" type="button">警報多到少</button>
         </div>
         <div class="table-scroll">
           <table>
@@ -49,11 +47,11 @@
                 <th class="sticky-col name-col">名稱</th>
                 <th>投資分類</th>
                 <th>最新價格</th>
-                <th>損益率</th>
-                <th>總分</th>
-                <th>狀態</th>
-                <th>主要警訊摘要</th>
-                <th>人工確認</th>
+                <th>成交量（股）</th>
+                <th>外資（股）</th>
+                <th>投信（股）</th>
+                <th>自營商（股）</th>
+                <th>警報數</th>
                 <th>更新日期</th>
                 <th>資料品質</th>
                 <th>詳情</th>
@@ -79,10 +77,11 @@
     </dialog>
 
     <footer>
+      <p><a href="data/daily-report.md">完整日報與政策公告</a> · <a href="data/quality.json">資料品質報告</a></p>
       本系統僅供投資追蹤與風險提示，不構成買賣建議，不得自動下單，所有決策需人工確認。
     </footer>
 
-    <script src="data/stocks-data.js"></script>
     <script src="assets/app.js"></script>
   </body>
 </html>
+
