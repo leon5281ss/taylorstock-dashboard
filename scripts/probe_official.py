@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from market_pipeline.news import collect_news
 from market_pipeline.pipeline import ROOT, TAIPEI, calendar_context, load_watchlist
@@ -9,7 +9,10 @@ from market_pipeline.sources import HttpClient, official_record, official_snapsh
 def main():
     now = datetime.now(TAIPEI)
     client = HttpClient(attempts=1)
-    target = now.date().isoformat()
+    calendar = calendar_context(client, now, (now.date() - timedelta(days=240)).isoformat())
+    target = calendar["targetDate"]
+    if target is None:
+        raise ValueError("calendar_target_unavailable")
     snapshots = official_snapshots(client, target)
     results = {}
     for item in load_watchlist(ROOT / "config/watchlist_public.json"):
@@ -18,7 +21,7 @@ def main():
             snapshot = snapshots[item["market"] + "_" + kind]
             record = official_record(snapshot, item["market"], kind, item["code"])
             results[item["code"]][kind] = {"status": snapshot["status"], "record": record}
-    payload = {"checkedAt": now.isoformat(), "official": results, "calendar": calendar_context(client, target, target[:4] + "-01-01"), "news": collect_news(client, now)}
+    payload = {"checkedAt": now.isoformat(), "official": results, "calendar": calendar, "news": collect_news(client, now)}
     print(json.dumps(payload, ensure_ascii=True))
 
 

@@ -1,11 +1,12 @@
 import re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
 from .sources import SourceError
+from .clock import TAIPEI, taipei_time
 
 FEEDS = {
     "財政部": "https://www.mof.gov.tw/Rss/384fb3077bb349ea973e7fc6f13b6974",
@@ -54,7 +55,7 @@ class AnnouncementParser(HTMLParser):
                 published = None
                 if match:
                     try:
-                        published = datetime(*map(int, match.groups()), tzinfo=timezone.utc).date().isoformat()
+                        published = datetime(*map(int, match.groups()), tzinfo=TAIPEI).date().isoformat()
                     except ValueError:
                         pass
                 self.links.append({"title": title, "url": self.active, "publishedDate": published})
@@ -73,6 +74,7 @@ class AnnouncementParser(HTMLParser):
 
 
 def collect_news(client, now):
+    now = taipei_time(now)
     reports = []
     for name, url in FEEDS.items():
         items = []
@@ -89,7 +91,7 @@ def collect_news(client, now):
                         continue
                     published = None
                     try:
-                        published = parsedate_to_datetime(entry.findtext("pubDate", "")).date().isoformat()
+                        published = taipei_time(parsedate_to_datetime(entry.findtext("pubDate", ""))).date().isoformat()
                     except (TypeError, ValueError, OverflowError):
                         pass
                     items.append({"title": title, "url": link, "publishedDate": published})

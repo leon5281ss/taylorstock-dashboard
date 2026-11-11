@@ -4,13 +4,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from market_pipeline.pipeline import ROOT, TAIPEI
+from market_pipeline.clock import taipei_time
 from market_pipeline.sources import DATASETS, HttpClient, SourceError, normalize_finmind
 
 DIAGNOSTIC_PATH = ROOT / "diagnostics" / "finmind-smoke.json"
 
 
 def smoke(token, client_factory=HttpClient, now=None):
-    now = now or datetime.now(TAIPEI)
+    now = taipei_time(now)
     end = (now.date() - timedelta(days=1)).isoformat()
     start = (now.date() - timedelta(days=15)).isoformat()
     result = {"symbol": "2303", "startDate": start, "endDate": end, "authentication": "bearer_header", "checks": [], "status": "failed"}

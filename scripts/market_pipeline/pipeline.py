@@ -1,17 +1,18 @@
 import argparse
 import json
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .alerts import evaluate
+from .clock import TAIPEI, PUBLICATION_CUTOFF, taipei_time
 from .news import collect_news
 from .monitor import market_monitor, related_industry_news
 from .risk import classify_stock
 from .sources import DATASETS, FINMIND, HOLIDAYS, HttpClient, SourceError, compare_official, government_bank, iso_date, normalize_finmind, official_record, official_snapshots
 
 ROOT = Path(__file__).resolve().parents[2]
-TAIPEI = timezone(timedelta(hours=8))
 PRIVATE_KEYS = {"shares", "quantity", "averagecost", "cost", "average_cost", "gainlossrate", "unrealizedpnlrate", "unrealizedpnl", "marketvalue", "totalmarketvalue", "totalunrealizedpnl", "overallreturnrate", "token", "authorization", "positions", "持有股數", "成本均價", "損益"}
 
 
@@ -40,7 +41,10 @@ def assert_public(payload, token=""):
         raise ValueError("secret_rejected")
 
 
-def calendar_context(client, today, start):
+def calendar_context(client, now, start, closure_overrides=None):
+    now = taipei_time(now)
+    today = now.date().isoformat()
+    eligible_end = today if now.time() >= PUBLICATION_CUTOFF else (now.date() - timedelta(days=1)).isoformat()
     issues, days = [], []
     diagnostic = None
     try:
@@ -69,16 +73,31 @@ def calendar_context(client, today, start):
                 closures.add(day)
     except (SourceError, ValueError, KeyError, TypeError):
         issues.append("official_calendar_unavailable")
+    override_sources = []
+    if closure_overrides is None:
+        closure_overrides = json.loads((ROOT / "config/market_closures.json").read_text(encoding="utf-8"))
+    for entry in closure_overrides:
+        source = urlparse(entry["source"])
+        if source.scheme != "https" or source.hostname not in ("www.twse.com.tw", "www.tpex.org.tw") or not entry.get("reason"):
+            raise ValueError("official_closure_evidence_required")
+        closures.add(iso_date(entry["date"]))
+        override_sources.append(entry["source"])
+    days = [day for day in days if day <= eligible_end and day not in closures and (date.fromisoformat(day).weekday() < 5 or day in openings)]
     is_closed = today in closures or (date.fromisoformat(today).weekday() >= 5 and today not in openings)
     if is_closed:
         target = max((day for day in days if day < today), default=None)
         status = "non_trading_day"
+    elif eligible_end < today:
+        target = max(days, default=None)
+        status = "before_publication_cutoff"
     else:
         target = today
         status = "trading_day" if today in days else "awaiting_confirmation"
     if not covered:
         issues.append("official_calendar_year_unverified")
-    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS]}
+    if target is None:
+        issues.append("no_confirmed_previous_session")
+    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "timezone": "Asia/Taipei", "evaluatedAt": now.isoformat(), "publicationCutoff": "15:30", "eligibleThrough": eligible_end, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS, *override_sources]}
 
 
 def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
@@ -138,10 +157,13 @@ def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
 
 
 def collect(client, watchlist, now, industry_items=None):
+    now = taipei_time(now)
     today = now.date().isoformat()
     start = (now.date() - timedelta(days=240)).isoformat()
-    calendar = calendar_context(client, today, start)
-    target = calendar["targetDate"] or today
+    calendar = calendar_context(client, now, start)
+    target = calendar["targetDate"]
+    if target is None:
+        raise SourceError("calendar_target_unavailable")
     snapshots = official_snapshots(client, target)
     stocks = [collect_stock(client, item, target, start, calendar["dates"], snapshots, not calendar["issues"] and target in calendar["dates"]) for item in watchlist]
     news = collect_news(client, now)
