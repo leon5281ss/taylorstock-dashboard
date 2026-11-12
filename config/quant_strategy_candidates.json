@@ -1,0 +1,48 @@
+{
+  "reviewedAt": "2026-11-12",
+  "market": "Stocks in MarginPad basket (NOT Taiwan)",
+  "source": "https://marginpad.io/strategies/",
+  "verification": "external_claim_unverified_for_taiwan",
+  "strategies": [
+    {
+      "id": "rsi14",
+      "label": "RSI14 30/70",
+      "winRate": 0.81,
+      "trades": 211,
+      "maxDrawdown": -0.393,
+      "source": "https://marginpad.io/strategies/rsi-30-70/"
+    },
+    {
+      "id": "mfi14",
+      "label": "MFI14 20/80",
+      "winRate": 0.758,
+      "trades": 182,
+      "maxDrawdown": -0.378,
+      "source": "https://marginpad.io/strategies/mfi-reversion/"
+    },
+    {
+      "id": "sma20_stretch",
+      "label": "SMA20 below 2pct",
+      "winRate": 0.721,
+      "trades": 1794,
+      "maxDrawdown": -0.314,
+      "source": "https://marginpad.io/strategies/stretch-below-sma/"
+    },
+    {
+      "id": "cci20",
+      "label": "CCI20 crossing -100",
+      "winRate": 0.714,
+      "trades": 1117,
+      "maxDrawdown": -0.371,
+      "source": "https://marginpad.io/strategies/cci-reversion/"
+    },
+    {
+      "id": "bollinger20",
+      "label": "Bollinger20 2 stdev dip",
+      "winRate": 0.713,
+      "trades": 988,
+      "maxDrawdown": -0.216,
+      "source": "https://marginpad.io/strategies/bollinger-dip/"
+    }
+  ]
+}

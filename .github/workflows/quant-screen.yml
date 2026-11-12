@@ -1,0 +1,36 @@
+name: Full Market Quant Readiness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "55 13 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quant-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Fetch official TWSE and TPEx company universe and check factor coverage
+        run: python scripts/quant_run.py --output quant-output
+      - name: Upload readiness diagnostics, never a fake ranking
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quant-readiness
+          path: quant-output/quant-readiness.json
+          if-no-files-found: warn
+          retention-days: 30
