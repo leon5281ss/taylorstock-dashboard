@@ -1,0 +1,54 @@
+name: Official Daily Market History
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Asia/Taipei 22:50 Monday-Friday, plus 09:15 following morning as fallback.
+    # GitHub Actions schedules may run late; each file is keyed to source trading day.
+    - cron: "50 14 * * 1-5"
+    - cron: "15 1 * * 2-6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: official-daily-market-history-main
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Collect verified TWSE and TPEx current-day snapshots
+        run: python scripts/collect_market_history.py --archive-dir data/market_daily --diagnostics ingestion-output
+      - name: Upload safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-history-status
+          path: ingestion-output/market-history-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit public verified quotes only (idempotent)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- data/market_daily
+          if git diff --cached --quiet; then
+            echo "No changes; source trading date already archived."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(quant): archive official TWSE and TPEx daily quotes"
+          git push origin HEAD:main
