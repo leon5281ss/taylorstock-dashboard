@@ -1,0 +1,71 @@
+name: Daily Paper Recommendation Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 14 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-paper-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      vars.PAPER_AUDIT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download sealed historical inputs from private repository
+        env:
+          GH_TOKEN: ${{ secrets.PAPER_AUDIT_TOKEN }}
+          PAPER_AUDIT_REPO: ${{ secrets.PAPER_AUDIT_REPO }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ] || [ -z "$PAPER_AUDIT_REPO" ]; then
+            echo "Missing private paper audit configuration"
+            exit 1
+          fi
+          IS_PRIVATE=$(gh api "repos/$PAPER_AUDIT_REPO" --jq '.private')
+          if [ "$IS_PRIVATE" != "true" ]; then
+            echo "Paper ledger must be a private repository"
+            exit 1
+          fi
+          mkdir -p private-input
+          for name in signals calendar prices; do
+            gh api "repos/$PAPER_AUDIT_REPO/contents/$name.json" --jq '.content' | base64 -d > "private-input/$name.json"
+          done
+      - name: Audit matured five/twenty-day signals net of fees and sale tax
+        run: >
+          python scripts/audit_recommendations.py
+          --signals private-input/signals.json
+          --calendar private-input/calendar.json
+          --prices private-input/prices.json
+          --output private-audit-output
+      - name: Save results exclusively in private ledger
+        env:
+          GH_TOKEN: ${{ secrets.PAPER_AUDIT_TOKEN }}
+          PAPER_AUDIT_REPO: ${{ secrets.PAPER_AUDIT_REPO }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          content=$(base64 -w0 private-audit-output/recommendation-audit.json)
+          old_sha=$(gh api "repos/$PAPER_AUDIT_REPO/contents/audit/latest.json" --jq '.sha' 2>/dev/null || true)
+          if [ -n "$old_sha" ]; then
+            gh api --method PUT "repos/$PAPER_AUDIT_REPO/contents/audit/latest.json" \
+              -f message="chore: refresh private paper performance" \
+              -f branch=main -f sha="$old_sha" -f content="$content" >/dev/null
+          else
+            gh api --method PUT "repos/$PAPER_AUDIT_REPO/contents/audit/latest.json" \
+              -f message="chore: initialize private paper performance" \
+              -f branch=main -f content="$content" >/dev/null
+          fi
