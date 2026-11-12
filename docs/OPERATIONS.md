@@ -22,6 +22,16 @@ Telegram 目前不發送，去重設計與啟用門檻見 [TELEGRAM_PLAN.md](TEL
 
 ## 排程與非交易日
 
+所有時刻先轉換為 IANA Asia/Taipei；拒絕未指定時區的 datetime，避免依 runner 時區猜測。Windows 若沒有 IANA 資料庫，先安裝 requirements.txt 的 tzdata。
+
+每日 15:30 前（含凌晨、盤中、13:30 收盤剛結束）以交易日資料中最近一個已結束且非休市的日期為目標；例如 2026-11-12 00:06、09:00、13:30 皆使用 2026-11-11。15:30 起才允許以當天作目標。15:30 是本系統的保守發布門檻，不是各來源保證上線的時間；價格、法人、資券仍各自核對日期，未更新保持 delayed，不把舊資料改成今日。
+
+週末、TWSE 國定假日與有官方依據的臨時休市會從整個歷史交易日集合排除。calendar.dates 不含發布門檻尚未到的當日，因此不會把未開盤日當歷史缺漏，前一日警報仍可計算。沒有可確認的前一交易日時停止收集並失敗，不回退成未開盤當天。
+
+臨時休市優先採官方 holidaySchedule 已發布的休市列；官方 API 尚未更新時，維護者依 TWSE／TPEx 全市場休市公告在 config/market_closures.json 加入 date、reason、source（https 官方公告網址），經審查部署。空檔代表沒有人工確認的覆寫，不代表保證沒有臨時休市。不能把地方停班、零資料或尚未發布自行認定成股市休市；未取得依據時盤後維持 awaiting_confirmation／延遲並停止不可靠警報。本版不宣稱自動解析所有災害公告。
+
+跨年使用回溯 240 日交易日，不僅查當年度；官方年度尚未覆蓋會保留警告。calendar 另記錄 evaluatedAt、timezone、publicationCutoff、eligibleThrough 與覆寫公告來源供稽核。來源：[TWSE 開休市日期](https://www.twse.com.tw/zh/trading/holiday.html)、[天然災害休市處理](https://www.twse.com.tw/zh/clearing/suspended.html)。
+
 UTC 13:00／13:20／13:40（臺灣 21:00／21:20／21:40），週一至五。後兩次為延遲發布重查，會重新產生報告。GitHub 排程可能排隊，21:00 是啟動目標，不保證精準送達時間。
 
 以 FinMind TaiwanStockTradingDate 及 TWSE 官方休市表判斷。官方休市日、一般週末標記 non_trading_day，日報使用最近已確認交易日；星期幾不能單獨證明平日有交易。颱風臨時休市若尚未反映於來源，標記 awaiting_confirmation，不擅自視為資料完整。

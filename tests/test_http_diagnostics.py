@@ -90,7 +90,7 @@ class DiagnosticsTests(unittest.TestCase):
         class FailedClient(FixtureClient):
             def dataset(self, *args):
                 raise SourceError("invalid_token", 400, 400)
-        payload = collect(FailedClient(), load_watchlist(ROOT / "config/watchlist_public.json"), datetime(2026, 11, 11, tzinfo=TAIPEI))
+        payload = collect(FailedClient(), load_watchlist(ROOT / "config/watchlist_public.json"), datetime(2026, 11, 11, 21, tzinfo=TAIPEI))
         self.assertEqual(payload["reportStatus"], "failed")
         self.assertEqual(set(payload["failedDatasets"]), {"price", "institutional", "margin"})
         self.assertEqual(payload["calendar"]["diagnostic"]["category"], "invalid_token")

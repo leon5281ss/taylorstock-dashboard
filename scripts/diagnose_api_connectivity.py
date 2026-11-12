@@ -11,11 +11,12 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
+from market_pipeline.clock import TAIPEI
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "logs"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-RUN_DATE = datetime.now().date().isoformat()
+RUN_DATE = datetime.now(TAIPEI).date().isoformat()
 OUT_PATH = OUT_DIR / f"api_diagnosis_{RUN_DATE}.txt"
 
 URLS = [

@@ -183,11 +183,11 @@ class PipelineTests(unittest.TestCase):
 
     def test_closed_day_and_delayed_day_distinct(self):
         client = FixtureClient()
-        self.assertEqual(calendar_context(client, "2026-11-14", "2026-01-01")["status"], "non_trading_day")
-        self.assertEqual(calendar_context(client, "2026-11-11", "2026-01-01")["status"], "awaiting_confirmation")
+        self.assertEqual(calendar_context(client, datetime(2026, 11, 14, 21, tzinfo=TAIPEI), "2026-01-01")["status"], "non_trading_day")
+        self.assertEqual(calendar_context(client, datetime(2026, 11, 11, 21, tzinfo=TAIPEI), "2026-01-01")["status"], "awaiting_confirmation")
         original = client.get
         client.get = lambda url, **kwargs: [{"Date": "1151111", "Name": "休市", "Description": "放假"}] if url == HOLIDAYS else original(url, **kwargs)
-        context = calendar_context(client, "2026-11-11", "2026-01-01")
+        context = calendar_context(client, datetime(2026, 11, 11, 21, tzinfo=TAIPEI), "2026-01-01")
         self.assertEqual(context["targetDate"], "2026-11-10")
         self.assertEqual(context["status"], "non_trading_day")
 
