@@ -124,7 +124,7 @@ def metrics(record, as_of):
         raise ValueError("borrow_balance_missing")
     if not all(_finite(row.get("balance")) and row["balance"] >= 0 for row in margins):
         raise ValueError("margin_balance_missing")
-    tdcc = record.get("tdcc", {})
+    tdcc = record.get("tdcc") or {}
     if not _finite(tdcc.get("largeHolderRatio")) or not 0 <= tdcc["largeHolderRatio"] <= 1:
         raise ValueError("tdcc_concentration_missing")
     try:
@@ -133,8 +133,8 @@ def metrics(record, as_of):
         raise ValueError("tdcc_date_invalid") from None
     if tdcc_age < 0 or tdcc_age > 14:
         raise ValueError("tdcc_stale")
-    f = record.get("fundamentals", {})
-    v = record.get("valuation", {})
+    f = record.get("fundamentals") or {}
+    v = record.get("valuation") or {}
     if not isinstance(f.get("eps5y"), list) or len(f["eps5y"]) != 5 or not all(_finite(x) for x in f["eps5y"]):
         raise ValueError("five_year_eps_missing")
     if not all(_finite(f.get(k)) for k in ("revenueYoY", "roe", "operatingMargin", "epsTTM")):
