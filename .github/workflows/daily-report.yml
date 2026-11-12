@@ -73,3 +73,34 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/deploy.yml
+
+  notify:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      vars.TELEGRAM_NOTIFICATIONS_ENABLED == 'true'
+    needs: collect
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: taylorstock-telegram-notifications
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: public-daily-report
+          path: report
+      - name: Opt-in Telegram market alerts
+        env:
+          TELEGRAM_NOTIFICATIONS_ENABLED: ${{ vars.TELEGRAM_NOTIFICATIONS_ENABLED }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_LEDGER_TOKEN: ${{ secrets.TELEGRAM_LEDGER_TOKEN }}
+          TELEGRAM_LEDGER_REPO: ${{ secrets.TELEGRAM_LEDGER_REPO }}
+        run: python scripts/send_telegram.py --report report/stocks.json
