@@ -20,3 +20,11 @@ python scripts/audit_recommendations.py --signals private/signals.json --calenda
 
 ## 目前不可宣稱已自動完成
 PR #5 還沒有完成台灣全上市櫃完整歷史資料管線、每日 Top10 實際發布、每日推薦不可變更私有帳本、自動抓取官方開盤/收盤價或線上到期稽核排程；因此目前沒有可據實計算的真實每日推薦勝率。接下來要逐步接上這些資料來源與持久化機制，完成樣本外回測與當日發布的紙上交易，再評估能否啟用自動推薦。
+
+## 每日自動稽核排程 / Daily Paper Audit
+PR #5 已加入獨立 workflow：Daily Paper Recommendation Audit。設定為台灣交易日22:15（UTC 14:15），但 GitHub Actions 排程可能延遲。
+預設不會執行：到 main 且儲存庫變數 PAPER_AUDIT_ENABLED 為 true 時，才會讀取私人帳本並稽核到期交易。
+請先建立另一個 PRIVATE GitHub repository（可命名 taylorstock-paper-ledger，README 初始化，main 分支），準備三個有來源且持續更新的 JSON：signals.json（事前封存推薦陣列）、calendar.json（官方交易日期陣列）、prices.json（已核對除權息的股票開盤與收盤歷史字典）。
+在主庫 Settings／設定 → Secrets and variables／秘密與變數 → Actions／行動 → Secrets／秘密 新增 PAPER_AUDIT_REPO（owner/private-repo）與 PAPER_AUDIT_TOKEN（只對該私人庫授予 Contents Read and write 的細粒度 PAT）。
+在同頁 Variables／變數將 PAPER_AUDIT_ENABLED 明確設成 true 後，執行 Actions／行動 → Daily Paper Recommendation Audit → Run workflow／執行工作流程；結果只寫回私人庫 audit/latest.json，不上傳公開 Artifacts／不部署到 Pages。
+若缺少以上任一私人資料，工作應失敗而不是虛報勝率；完成全市場每日推薦和官方價量資料管線之前不要啟用。只計已持有足額交易日、可核對開盤收盤價的紙上交易，不可用同一天收盤填寫成交。
