@@ -1,0 +1,42 @@
+name: Technical Archive Readiness
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Official Daily Market History"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: technical-archive-readiness
+  cancel-in-progress: false
+
+jobs:
+  technical:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline integrity and regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Measure indicator history readiness without publishing rankings
+        run: python scripts/technical_readiness.py --archive-dir data/market_daily --output technical-output
+      - name: Upload research-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: technical-readiness
+          path: technical-output/technical-readiness.json
+          if-no-files-found: warn
+          retention-days: 30
