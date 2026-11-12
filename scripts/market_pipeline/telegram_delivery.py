@@ -54,15 +54,25 @@ def grouped_messages(payload, events):
               "／中 " + str(s.get("riskCounts", {}).get("中", "未知")) +
               "\n僅公開市場警報；核對各項資料日期。")
     result, block, lines = [], [], []
+    stock_lookup = {stock["code"]: stock for stock in payload["stocks"]}
+    news_lookup = {item["eventId"]: item for item in payload.get("marketMonitor", {}).get("items", [])}
     for event in events:
         if event["scope"] == "digest":
             line = "每日摘要"
         elif event["scope"] == "market":
-            line = event["date"] + " 市場政策公告候選（不等於實際護盤）"
+            item = news_lookup.get(event.get("article"), {})
+            title = item.get("title", "公告標題待核對")
+            line = event["date"] + " 市場政策：" + title[:75] + "（公告不代表實際護盤）"
         else:
-            line = event["date"] + " " + event["symbol"] + " " + event["level"] + " " + event["rule"]
+            stock = stock_lookup.get(event["symbol"], {})
+            matched = next((a for a in stock.get("alerts", [])
+                            if a.get("rule") == event["rule"] and a.get("date") == event["date"]),
+                           {})
+            line = (event["date"] + " " + event["symbol"] + " " +
+                    str(stock.get("name", ""))[:14] + " " + event["level"] +
+                    "：" + str(matched.get("message", event["rule"]))[:95])
             if event.get("action") == "escalation":
-                line += " [升級]"
+                line += " [風險升級]"
         line = "• " + line[:180]
         if block and len(header + "\n".join(lines + [line])) > 3300:
             result.append((block, header + "\n\n" + "\n".join(lines)))
