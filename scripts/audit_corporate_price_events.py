@@ -9,6 +9,7 @@ from bisect import bisect_left
 from datetime import date
 import gzip
 import json
+import math
 from pathlib import Path
 
 from research_price_coverage import CoverageError, load_snapshot
@@ -44,7 +45,7 @@ def load_events(folder):
                     raise EventPriceError("duplicate_corporate_event")
                 seen.add(key)
                 if any(not isinstance(event.get(k), (float, int)) or
-                       isinstance(event.get(k), bool) or event[k] <= 0
+                       isinstance(event.get(k), bool) or not math.isfinite(event[k]) or event[k] <= 0
                        for k in ("previousClose", "referencePrice", "referenceRatio")):
                     raise EventPriceError("nonpositive_corporate_event_price")
                 events.append(event)
@@ -52,6 +53,36 @@ def load_events(folder):
                 gzip.BadGzipFile) as exc:
             raise EventPriceError("invalid_corporate_event_gzip") from exc
     return events
+
+
+def research_event(event, previous_day, previous, current, *, tolerance):
+    """Separate official reference diagnostics from any verified adjustment."""
+    reported = event["previousClose"]
+    reference = event["referencePrice"]
+    reference_consistent = math.isclose(
+        event["referenceRatio"], reference / reported, rel_tol=0, abs_tol=5.01e-10)
+    issues = ["official_announcement_unverified", "entitlement_terms_unverified",
+              "capital_action_coverage_unverified"]
+    if current is None:
+        issues.append("event_quote_missing")
+    if previous is None:
+        issues.append("prior_quote_missing")
+    elif abs(previous - reported) > tolerance:
+        issues.append("prior_close_mismatch")
+    if not reference_consistent:
+        issues.append("reference_ratio_inconsistent")
+    return {
+        "market": event["market"], "code": event["code"], "effectiveDate": event["exDate"],
+        "type": event.get("type"), "status": "adjustment_blocked", "issues": issues,
+        "announcementDate": None, "entitlementTerms": None,
+        "rawPrice": {"previousDate": previous_day, "previousClose": previous,
+                     "eventClose": current},
+        "exchangeReference": {"previousClose": reported, "referencePrice": reference,
+                              "storedRatioConsistent": reference_consistent},
+        "adjustedPrice": {"factor": None, "previousClose": None, "eventClose": None,
+                          "priceReturn": None},
+        "reinvestedTotalReturn": None,
+    }
 
 
 def audit(daily_dir, historic_dir, corp_dir, *, price_tolerance=0.011):
@@ -75,8 +106,18 @@ def audit(daily_dir, historic_dir, corp_dir, *, price_tolerance=0.011):
     observed, out_of_range, nontrading, prior_missing, matching, different = (
         0, 0, 0, 0, 0, [])
     event_on_price_date = 0
+    event_evidence = []
     for e in events:
         ex = e["exDate"]
+        key = (e["market"], e["code"])
+        i = bisect_left(ordered, ex)
+        prev = ordered[i-1] if i and ex in days else None
+        if prev and (date.fromisoformat(ex)-date.fromisoformat(prev)).days > 7:
+            prev = None
+        previous = days[prev].get(key) if prev else None
+        current = days.get(ex, {}).get(key)
+        evidence = research_event(e, prev, previous, current, tolerance=price_tolerance)
+        event_evidence.append(evidence)
         if not ordered[0] <= ex <= ordered[-1]:
             out_of_range += 1
             continue
@@ -85,16 +126,6 @@ def audit(daily_dir, historic_dir, corp_dir, *, price_tolerance=0.011):
             nontrading += 1
             continue
         event_on_price_date += 1
-        i = bisect_left(ordered, ex)
-        if i == 0:
-            prior_missing += 1
-            continue
-        prev = ordered[i-1]
-        if (date.fromisoformat(ex)-date.fromisoformat(prev)).days > 7:
-            prior_missing += 1
-            continue
-        key = (e["market"], e["code"])
-        previous = days[prev].get(key)
         if previous is None:
             prior_missing += 1
             continue
@@ -115,6 +146,8 @@ def audit(daily_dir, historic_dir, corp_dir, *, price_tolerance=0.011):
         "earliestPriceDay": ordered[0], "latestPriceDay": ordered[-1],
         "priceObservedDates": len(ordered),
         "officialCorporateReferenceEvents": len(events),
+        "eventEvidence": event_evidence,
+        "adjustmentReadyEvents": 0,
         "eventsOutsidePriceRange": out_of_range,
         "eventsInsidePriceRange": observed,
         "eventsWithExDayPrice": event_on_price_date,
