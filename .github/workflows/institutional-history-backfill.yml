@@ -1,0 +1,61 @@
+name: Automatic Institutional History Research Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_institutional_research.py"
+      - "scripts/collect_institutional_history.py"
+      - "tests/test_institutional_research_backfill.py"
+      - ".github/workflows/institutional-history-backfill.yml"
+  schedule:
+    # 02:25 / 08:25 / 14:25 / 20:25 Asia/Taipei.
+    - cron: "25 0,6,12,18 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-institutional-history-research-backfill
+  cancel-in-progress: false
+
+jobs:
+  research:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test public-data integrity and account arithmetic invariants
+        run: python -m unittest discover -s tests -v
+      - name: Backfill at most twelve independently dated institutional research snapshots
+        run: >-
+          python scripts/backfill_institutional_research.py
+          --daily-dir data/market_daily
+          --price-research-dir data/market_backfill_pilot
+          --institutional-dir data/institutional_research
+          --output institutional-backfill-output
+          --max-successes 12
+          --max-attempts 16
+      - name: Preserve read-only sanity diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: institutional-history-research-status
+          path: institutional-backfill-output/institutional-backfill-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Safely commit only validated public institutional research snapshots
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/institutional_research
+          "data(quant): backfill validated dated institutional research net flows"
