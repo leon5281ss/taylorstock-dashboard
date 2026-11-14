@@ -41,14 +41,7 @@ jobs:
           retention-days: 30
       - name: Commit public verified quotes only (idempotent)
         shell: bash
-        run: |
-          set -euo pipefail
-          git add -- data/market_daily
-          if git diff --cached --quiet; then
-            echo "No changes; source trading date already archived."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data(quant): archive official TWSE and TPEx daily quotes"
-          git push origin HEAD:main
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/market_daily
+          "data(quant): archive official TWSE and TPEx daily quotes"

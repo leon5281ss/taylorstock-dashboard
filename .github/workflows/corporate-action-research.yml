@@ -50,14 +50,7 @@ jobs:
       - name: Commit only validated public reference events
         if: always()
         shell: bash
-        run: |
-          set -euo pipefail
-          git add -- data/corporate_action_research
-          if git diff --cached --quiet; then
-            echo "No new validated research reference events."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data(quant): refresh official corporate action reference research"
-          git push origin HEAD:main
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/corporate_action_research
+          "data(quant): refresh official corporate action reference research"

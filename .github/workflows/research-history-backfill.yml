@@ -55,14 +55,7 @@ jobs:
       - name: Commit ONLY validated public historical research archives
         if: always()
         shell: bash
-        run: |
-          set -euo pipefail
-          git add -- data/market_backfill_pilot
-          if git diff --cached --quiet; then
-            echo "No new research dates to archive."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data(quant): incrementally accumulate validated research history"
-          git push origin HEAD:main
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/market_backfill_pilot
+          "data(quant): incrementally accumulate validated research history"
