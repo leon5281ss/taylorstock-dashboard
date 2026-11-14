@@ -87,7 +87,8 @@ class ResearchPriceCoverageTests(unittest.TestCase):
             self.put((day + timedelta(days=n)).isoformat(),
                      history=True, missing_tpex=(n == 1))
         self.put("2026-11-11")
-        result = self.audit()
+        result = audit_coverage(self.daily, self.history,
+                                today=date(2026, 11, 14), minimum=(1, 0))
         self.assertEqual(result["pricePresenceByWindow"]["5"]["TWSE"], 1)
         self.assertEqual(result["pricePresenceByWindow"]["5"]["TPEX"], 0)
 
@@ -117,7 +118,7 @@ class ResearchPriceCoverageTests(unittest.TestCase):
         p = payload("2026-11-13")
         p["stocks"][0]["close"] = float("nan")
         path = self.daily/"2026-11-13.json.gz"
-        path.write_bytes(compressed_snapshot(p)) if False else path.write_bytes(__import__("gzip").compress(
+        path.write_bytes(__import__("gzip").compress(
             __import__("json").dumps(p, allow_nan=True).encode()))
         with self.assertRaisesRegex(CoverageError, "invalid_ohlc"):
             load_snapshot(path, historical=False, minimum=(1, 1))
