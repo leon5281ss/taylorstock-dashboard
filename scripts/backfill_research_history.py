@@ -49,6 +49,30 @@ def scheduled_market_closures(payload, year):
     return closed
 
 
+def saved_official_closures(path, year):
+    if path is None:
+        raise BackfillError("no_saved_holiday_reference")
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        dates = data["closedDates"]
+        if (data.get("schemaVersion") != 1 or data.get("year") != year
+                or data.get("market") != "TWSE"
+                or data.get("officialSource") != HOLIDAY_URL
+                or not isinstance(dates, list) or len(dates) < 10):
+            raise BackfillError("saved_official_calendar_invalid")
+        closed = set()
+        for raw in dates:
+            d = date.fromisoformat(raw)
+            if d.year != year or d.weekday() >= 5 or raw != d.isoformat():
+                raise BackfillError("saved_holiday_date_invalid")
+            closed.add(raw)
+        if len(closed) != len(dates):
+            raise BackfillError("duplicate_saved_holiday_dates")
+        return closed
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise BackfillError("saved_official_calendar_unavailable") from exc
+
+
 def archive_plan(daily_dir, research_dir, *, lookback_days=220,
                  max_successes=20, max_attempts=30, official_closed_dates=()):
     """Newest first, explicit cap, never rewrite verified daily or pilot snapshots."""
@@ -79,6 +103,7 @@ def archive_plan(daily_dir, research_dir, *, lookback_days=220,
 def run_batch(daily_dir, research_dir, *,
               fetch=fetch_text, roster_fetch_json=fetch_json,
               roster_fetch_csv=fetch_csv, holiday_fetch=None,
+              saved_calendar_path=None,
               sleep=time.sleep, delay=2.5,
               lookback_days=220, max_successes=20, max_attempts=30):
     if delay < 2.5:
@@ -98,6 +123,17 @@ def run_batch(daily_dir, research_dir, *,
         except (BackfillError, ValueError, TypeError, KeyError, OSError) as exc:
             calendar_status = "unavailable_not_assumed_open"
             calendar_error = str(exc) if isinstance(exc, BackfillError) else "holiday_source_or_schema_error"
+            # Official live OpenAPI can switch to the next year's calendar.
+            # An explicit 2026 official reference is safer than guessing holidays.
+            try:
+                closed = saved_official_closures(
+                    saved_calendar_path, year=int(plan["firstDaily"][:4]))
+                plan = archive_plan(daily_dir, research_dir, lookback_days=lookback_days,
+                                    max_successes=max_successes, max_attempts=max_attempts,
+                                    official_closed_dates=closed)
+                calendar_status = "saved_official_reference_year_verified"
+            except BackfillError:
+                pass
     if not plan["candidates"]:
         return {"status": "no_candidates", "new": [], "errors": [],
                 "existingResearchDays": plan["researchExisting"], "newCount": 0,
@@ -168,6 +204,7 @@ def main():
     try:
         report = run_batch(args.daily_dir, args.research_dir,
                            holiday_fetch=fetch_json,
+                           saved_calendar_path=Path("config/official_twse_holidays_2026.json"),
                            lookback_days=args.lookback_days,
                            max_successes=args.max_successes,
                            max_attempts=args.max_attempts)
@@ -176,6 +213,7 @@ def main():
               "; new=" + str(report["newCount"]) +
               "; total-research=" + str(report.get("researchDaysNow", report["existingResearchDays"])) +
               "; unverified=" + str(report.get("unverifiedDays", 0)) +
+              "; holidayCalendar=" + str(report.get("holidayCalendarStatus", "unknown")) +
               "; NO TOP10/NO PROD MERGE")
         for failure in report.get("errors", [])[:8]:
             print("::warning::" + failure["date"] + ": " + failure["reason"])
