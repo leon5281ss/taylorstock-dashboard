@@ -1,0 +1,44 @@
+name: Official Dated Institutional Source Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/probe_institutional_history.py"
+      - "tests/test_institutional_source_probe.py"
+      - ".github/workflows/institutional-source-probe.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-institutional-source-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline unit tests including 22-stock privacy checks
+        run: python -m unittest discover -s tests -v
+      - name: Verify that official dates affect TWSE and TPEx institutional source payloads
+        run: >-
+          python scripts/probe_institutional_history.py
+          --date-one 2026-11-12
+          --date-two 2026-11-13
+          --output institutional-probe-output
+      - name: Upload only public schema and dated-source diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: institutional-source-probe
+          path: institutional-probe-output/institutional-source-probe.json
+          if-no-files-found: warn
+          retention-days: 30
