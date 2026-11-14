@@ -88,10 +88,15 @@ def entitlement(field, value, kind):
             or not re.fullmatch(r"[0-9]+(?:[.][0-9]+)?", value)):
         raise ValueError
     number = Decimal(value)
-    if (number == 0 and field != "cashReturnedPerOldShareTwd"
-            or kind == "split" and number <= 1
-            or kind in ("reverseSplit", "capitalReduction") and number >= 1):
+    if field == "cashReturnedPerOldShareTwd":
+        return number
+    if number == 0:
         raise ValueError
+    if field == "newSharesPerOldShare":
+        if kind == "split" and number <= 1:
+            raise ValueError
+        if kind in ("reverseSplit", "capitalReduction") and number >= 1:
+            raise ValueError
     return number
 
 

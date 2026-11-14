@@ -3,9 +3,10 @@ from datetime import datetime
 from pathlib import Path
 import sys
 import unittest
+from decimal import Decimal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from corporate_action_disclosure import compare
+from corporate_action_disclosure import compare, entitlement
 
 
 class DisclosureTests(unittest.TestCase):
@@ -69,3 +70,28 @@ class DisclosureTests(unittest.TestCase):
                       "invalid_cashPerShareTwd", "invalid_recordDate", "invalid_paymentDate"):
             self.assertIn(issue, result["issues"])
         self.assertIsNone(result["candidateAdjustmentFactor"])
+
+    def test_capital_reduction_cash_is_not_an_exchange_ratio(self):
+        for amount in ("0", "2", "10"):
+            with self.subTest(amount=amount):
+                self.assertEqual(
+                    entitlement("cashReturnedPerOldShareTwd", amount, "capitalReduction"),
+                    Decimal(amount))
+        for amount in ("-1", "invalid", "NaN", True, False):
+            with self.subTest(amount=amount), self.assertRaises(ValueError):
+                entitlement("cashReturnedPerOldShareTwd", amount, "capitalReduction")
+
+    def test_exchange_ratio_limits_are_specific_to_the_action(self):
+        for kind, valid, invalid in (
+            ("capitalReduction", "0.5", "1"),
+            ("reverseSplit", "0.5", "2"),
+            ("split", "2", "0.5"),
+            ("stockDividend", "1.5", "0"),
+            ("cashRightsIssue", "1.5", "0"),
+        ):
+            with self.subTest(kind=kind):
+                self.assertEqual(entitlement("newSharesPerOldShare", valid, kind), Decimal(valid))
+                with self.assertRaises(ValueError):
+                    entitlement("newSharesPerOldShare", invalid, kind)
+        self.assertEqual(entitlement("subscriptionPriceTwd", "10", "cashRightsIssue"), Decimal(10))
+        self.assertEqual(entitlement("cashPerShareTwd", "10", "cashDividend"), Decimal(10))
