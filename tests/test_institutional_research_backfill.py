@@ -34,13 +34,21 @@ def price_archive(day, historical=False):
 
 
 def institutional_archive(day):
+    rows = [
+        {"market": market, "code": str(n),
+         "foreignNet": 100, "trustNet": 10, "dealerNet": 7,
+         "totalNet": 117, "foreignDealerNetNotAddedToForeign": 5,
+         "dealerSelfNet": 3, "dealerHedgeNet": 4}
+        for market, lo, hi in (("TWSE", 1000, 1700), ("TPEX", 6000, 6500))
+        for n in range(lo, hi)
+    ]
     return compressed_snapshot({
         "schemaVersion": 1, "asOf": day,
         "status": "institutional_history_research_only",
         "sourceDateEvidence": {"TWSE": "explicit_response_date",
                                "TPEX": "explicit_response_date"},
         "marketCounts": {"TWSE": 700, "TPEX": 500},
-        "publishable": False,
+        "rows": rows, "publishable": False,
     })
 
 
@@ -106,9 +114,7 @@ class InstitutionalBackfillTests(unittest.TestCase):
         calls = []
         def collect(day, **kwargs):
             calls.append((day, kwargs["company_universe"]))
-            return {"asOf": day, "publishable": False,
-                    "marketCounts": {"TWSE": 700, "TPEX": 500},
-                    "status": "institutional_history_research_only"}
+            return json.loads(gzip.decompress(institutional_archive(day)))
         with (patch.object(backfill, "official_universe",
                            return_value={"errors": {}, "markets": {}}),
               patch.object(backfill, "official_institutional_day", side_effect=collect)):
