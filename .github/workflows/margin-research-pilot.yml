@@ -1,0 +1,62 @@
+name: Official Margin Balance Historical Research Pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      trading_date:
+        description: "Exchange-local YYYY-MM-DD"
+        required: true
+        default: "2026-11-13"
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "scripts/collect_margin_research.py"
+      - "tests/test_margin_research.py"
+      - ".github/workflows/margin-research-pilot.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-margin-research-pilot
+  cancel-in-progress: false
+
+jobs:
+  research:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Full research schema and privacy regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Verify and archive one official historical margin-balance date
+        env:
+          MARGIN_DAY: ${{ inputs.trading_date || '2026-11-13' }}
+        run: >-
+          python scripts/collect_margin_research.py
+          --day "$MARGIN_DAY"
+          --research-dir data/margin_research
+          --output margin-research-output
+      - name: Upload source unit, date and coverage diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: margin-history-research-status
+          path: margin-research-output/margin-research-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Persist isolated unnormalized margin balance research
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/margin_research
+          "data(quant): archive exchange-verified, source-unit margin balances"
