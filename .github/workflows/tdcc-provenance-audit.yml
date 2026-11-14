@@ -1,0 +1,55 @@
+name: TDCC Weekly Source Provenance Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_tdcc_provenance.py"
+      - "tests/test_tdcc_provenance_audit.py"
+      - ".github/workflows/tdcc-provenance-audit.yml"
+      - "docs/quant-progress.html"
+  workflow_run:
+    workflows:
+      - "External TDCC Weekly Archive Research (Unverified History)"
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-tdcc-provenance-audit
+  cancel-in-progress: false
+
+jobs:
+  provenance:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate all public data schemas and privacy invariants
+        run: python -m unittest discover -s tests -v
+      - name: Verify TDCC direct-official versus independent mirror file provenance
+        run: >-
+          python scripts/audit_tdcc_provenance.py
+          --official-dir data/tdcc_weekly_research
+          --external-dir data/tdcc_external_history_research
+          --output tdcc-provenance-output
+      - name: Upload research-only source provenance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdcc-weekly-source-provenance
+          path: tdcc-provenance-output/tdcc-provenance-audit.json
+          if-no-files-found: warn
+          retention-days: 30
