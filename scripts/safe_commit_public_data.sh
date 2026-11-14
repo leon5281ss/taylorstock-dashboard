@@ -12,7 +12,7 @@ fi
 allowed_dir="$1"
 message="$2"
 case "$allowed_dir" in
-  data/market_backfill_pilot|data/market_daily|data/corporate_action_research|data/institutional_research) ;;
+  data/market_backfill_pilot|data/market_daily|data/corporate_action_research|data/institutional_research|data/tdcc_weekly_research) ;;
   *)
     echo "::error::Refusing to stage directory outside the public-data allowlist." >&2
     exit 2

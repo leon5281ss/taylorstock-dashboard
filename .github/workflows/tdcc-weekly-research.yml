@@ -1,0 +1,56 @@
+name: Official TDCC Weekly Research Pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/collect_tdcc_weekly_research.py"
+      - "tests/test_tdcc_weekly_research.py"
+      - ".github/workflows/tdcc-weekly-research.yml"
+  schedule:
+    # Taiwan Saturday 10:30, after the last business day of the TDCC week.
+    - cron: "30 2 * * 6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-tdcc-weekly-research
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run entire public research regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Fetch and validate official TDCC most recent weekly snapshot
+        run: >-
+          python scripts/collect_tdcc_weekly_research.py
+          --archive-dir data/tdcc_weekly_research
+          --output tdcc-output
+      - name: Upload TDCC research diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdcc-weekly-research-status
+          path: tdcc-output/tdcc-weekly-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Safely archive the verified TDCC weekly distribution snapshot
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/tdcc_weekly_research
+          "data(quant): archive verified official TDCC weekly shareholder distribution"
