@@ -71,5 +71,24 @@ class DatedValuationProbeTests(unittest.TestCase):
             p.run("2026-11-12","2026-11-13",delay=0.1)
 
 
+    def test_modern_tpex_official_table_passes_without_trade_readiness(self):
+        data = {"stat": "ok", "date": "115/11/13", "tables": [{
+            "fields": ["代號", "名稱", "本益比", "每股股利", "股利年度", "殖利率(%)",
+                       "股價淨值比", "財報年/季"],
+            "data": [[str(i).zfill(4), "公司", "10", "2", "114", "3", "1.5", "115/3"]
+                     for i in range(2000, 2400)]}]}
+        result = p.inspect(data, "TPEX", "2026-11-13")
+        self.assertEqual(result["fourDigitSymbols"], 400)
+        self.assertFalse(result["issuerStatementPublicReleaseDatesVerified"])
+
+    def test_modern_tpex_unknown_valuation_columns_blocked(self):
+        data = {"stat": "ok", "tables": [{
+            "fields": ["代號", "名稱", "本益比", "每股股利", "股利年度", "其他",
+                       "股價淨值比", "財報年/季"],
+            "data": [[str(i).zfill(4), "公司", "10", "2", "114", "3", "1.5", "115/3"]
+                     for i in range(2000, 2400)]}]}
+        with self.assertRaisesRegex(p.ValuationProbeError, "columns_changed"):
+            p.inspect(data, "TPEX", "2026-11-13")
+
 if __name__=="__main__":
     unittest.main()
