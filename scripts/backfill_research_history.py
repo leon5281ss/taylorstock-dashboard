@@ -42,7 +42,7 @@ def scheduled_market_closures(payload, year):
         name, detail = str(item.get("Name", "")), str(item.get("Description", ""))
         if "開始交易" in name or "最後交易" in name:
             continue
-        if day.weekday() < 5 and ("放假" in detail or "無交易" in name):
+        if day.weekday() < 5 and ("放假" in detail or "補假" in detail or "無交易" in name):
             closed.add(day.isoformat())
     if seen_year < 8:
         raise BackfillError("official_holiday_calendar_year_unavailable")
