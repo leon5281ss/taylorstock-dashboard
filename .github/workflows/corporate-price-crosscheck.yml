@@ -1,0 +1,47 @@
+name: Corporate Event and Historical Price Crosscheck
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_corporate_price_events.py"
+      - "tests/test_corporate_price_events.py"
+      - ".github/workflows/corporate-price-crosscheck.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-corporate-price-crosscheck
+  cancel-in-progress: false
+
+jobs:
+  research-audit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Full offline data-quality and privacy regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Read-only previous close versus corporate reference crosscheck
+        run: >-
+          python scripts/audit_corporate_price_events.py
+          --daily-dir data/market_daily
+          --historical-dir data/market_backfill_pilot
+          --corporate-dir data/corporate_action_research
+          --output corporate-price-output
+      - name: Upload non-trading corporate event price consistency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corporate-event-raw-price-crosscheck
+          path: corporate-price-output/corporate-price-crosscheck.json
+          if-no-files-found: warn
+          retention-days: 30
