@@ -1,0 +1,44 @@
+name: Official Dated Valuation Historical Source Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/probe_valuation_history.py"
+      - "tests/test_valuation_source_probe.py"
+      - ".github/workflows/valuation-source-probe.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-valuation-dated-source-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline data-source, safety and privacy tests
+        run: python -m unittest discover -s tests -v
+      - name: Compare two official valuation history dates
+        run: >-
+          python scripts/probe_valuation_history.py
+          --first-day 2026-11-12
+          --second-day 2026-11-13
+          --output valuation-probe-output
+      - name: Upload read-only provenance diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-valuation-history-probe
+          path: valuation-probe-output/dated-valuation-source-probe.json
+          if-no-files-found: warn
+          retention-days: 30
