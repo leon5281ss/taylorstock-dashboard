@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="泰樂台股全上市櫃量化選股研究資料完整性與回補進度。">
+  <title>量化研發進度｜台股公開監控</title>
+  <style>
+    :root {color-scheme:dark;--bg:#0b1220;--panel:#151e30;--line:#28364b;--text:#eef4fa;--muted:#9aacc2;--teal:#44c3c1;--amber:#ffc978}
+    * {box-sizing:border-box}
+    body {margin:0;font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:linear-gradient(140deg,#0c1730,var(--bg) 56%);color:var(--text)}
+    a {color:#8cdcf1}
+    .container {max-width:1040px;margin:auto;padding:32px 18px 64px}
+    nav {display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:40px}
+    .brand {font-size:15px;font-weight:750;letter-spacing:.04em;color:var(--teal)}
+    nav a {color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:8px 14px;border-radius:10px}
+    h1 {font-size:clamp(30px,5vw,48px);letter-spacing:-.045em;line-height:1.15;margin:14px 0}
+    h2 {font-size:20px;margin:0 0 18px}
+    p {margin:0 0 14px}
+    .subtitle {max-width:740px;color:var(--muted);font-size:16px}
+    .eyebrow {text-transform:uppercase;letter-spacing:.15em;color:var(--teal);font-size:12px;font-weight:800}
+    .statusline {font-size:13px;color:var(--muted);margin:24px 0}
+    .grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .card {background:var(--panel);border:1px solid var(--line);padding:24px;border-radius:18px;min-width:0}
+    .number {font-size:clamp(27px,5vw,42px);line-height:1.2;font-weight:800;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+    .metricname {color:var(--muted);font-size:14px;margin-top:5px}
+    section {margin-top:24px}
+    .bar {height:16px;border-radius:30px;background:#26354a;overflow:hidden;margin:16px 0 8px}
+    .fill {height:100%;width:0;background:linear-gradient(90deg,#45aeb2,#78ead6);border-radius:30px;transition:width .45s}
+    .between {display:flex;justify-content:space-between;gap:12px;align-items:center}
+    small,.note {color:var(--muted);font-size:13px}
+    .block {background:#122033;border-left:3px solid var(--amber);border-radius:10px;padding:14px 18px;color:#fbe8c4}
+    .phase {padding:17px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:20px}
+    .phase:last-child {border:none}
+    .phase span:first-child {font-weight:600}
+    .phase span:last-child {font-size:13px;color:var(--muted);text-align:right}
+    .phase .ok {color:var(--teal)!important}
+    .recent {display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+    .day {border:1px solid var(--line);background:#202d42;border-radius:8px;font-size:12px;padding:5px 8px;color:#c6d5e8}
+    footer {color:var(--muted);font-size:13px;line-height:1.8;border-top:1px solid var(--line);margin-top:40px;padding-top:22px}
+    @media (max-width:640px){.grid{grid-template-columns:1fr 1fr}.grid .card:last-child{grid-column:1/-1}.card{padding:18px}.container{padding-top:20px}.phase{flex-direction:column;gap:3px}.phase span:last-child{text-align:left}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav><div class="brand">TAYLOR STOCK · RESEARCH</div><a href="index.html">返回22檔風險看板</a></nav>
+    <div class="eyebrow">Full-market quant research · public data only</div>
+    <h1>全上市櫃量化研發進度</h1>
+    <p class="subtitle">追蹤官方市場行情逐日歸檔與歷史研究資料的累積情形。這不是股票推薦排行榜，也不顯示私人持股、成本或交易金鑰。</p>
+    <p id="state" class="statusline" role="status" aria-live="polite">讀取 GitHub 公開資料中…</p>
+    <div class="grid" aria-label="已保存市場行情日期數量">
+      <div class="card"><div id="daily" class="number">—</div><div class="metricname">正式每日行情日期</div></div>
+      <div class="card"><div id="research" class="number">—</div><div class="metricname">獨立歷史研究日期</div></div>
+      <div class="card"><div id="total" class="number">—</div><div class="metricname">不重複的行情觀測日期</div></div>
+    </div>
+    <section class="card">
+      <div class="between"><h2>研究價格資料累積門檻</h2><strong id="progressLabel">— / 121</strong></div>
+      <div class="bar" role="progressbar" aria-label="已保存行情觀測日期" aria-valuemin="0" aria-valuemax="121" aria-valuenow="0" id="progressBar"><div class="fill" id="fill"></div></div>
+      <p class="note" id="coverage">載入後顯示觀測日期數量。</p>
+      <div class="block">121 個觀測日期<strong>只是初步資料門檻</strong>。仍需校正除權息、還原歷史當時公司名單、確認交易日曆及成交量口徑，才能進行可靠的樣本外回測。</div>
+    </section>
+    <section class="card">
+      <h2>量化系統品質閘門</h2>
+      <div class="phase"><span>上市櫃官方公司名單與每日價量擷取</span><span class="ok">程式已上線</span></div>
+      <div class="phase"><span>歷史行情研究回補與來源交叉比對</span><span class="ok">自動歸檔中 · 尚未校正</span></div>
+      <div class="phase"><span>5／20／60／121日價格完整性稽核</span><span class="ok">已建立自動檢查</span></div>
+      <div class="phase"><span>除權息／減資與下市公司回補</span><span>未完成，禁止正式回測</span></div>
+      <div class="phase"><span>籌碼／財報／估值的歷史時間點資料</span><span>未完成</span></div>
+      <div class="phase"><span>樣本外扣手續費、證交稅及滑價的實績驗證</span><span>未完成</span></div>
+      <div class="phase"><span>全市場Top 10與Telegram量化選股通知</span><span>尚未啟用 · 不提供買賣訊號</span></div>
+    </section>
+    <section class="card">
+      <h2>最近已保存的行情日期</h2>
+      <p class="note">以下僅代表檔案存在，無法推定所有交易日、所有股票或所有因子均完整。</p>
+      <div id="recent" class="recent" aria-label="最近歸檔日期"><span class="note">載入中…</span></div>
+    </section>
+    <footer>
+      <p><a href="https://github.com/leon5281ss/taylorstock-dashboard/issues/6" target="_blank" rel="noopener noreferrer">開發任務與資料限制</a> ·
+      <a href="https://github.com/leon5281ss/taylorstock-dashboard/actions/workflows/research-history-backfill.yml" target="_blank" rel="noopener noreferrer">自動行情回補紀錄</a> ·
+      <a href="index.html">22檔風險追蹤</a></p>
+      <p>公開 GitHub 儲存庫內的研究資料為未還原歷史資料；上櫃不同來源成交量統計口徑不同。所有投資決策應另行核實，本站不提供自動下單。</p>
+    </footer>
+  </div>
+  <script>
+  "use strict";
+  (async function() {
+    const repo = "leon5281ss/taylorstock-dashboard";
+    const api = "https://api.github.com/repos/" + repo + "/contents/data/";
+    const $ = id => document.getElementById(id);
+    async function dates(folder) {
+      const response = await fetch(api + folder + "?ref=main", {
+        headers: {"Accept":"application/vnd.github+json"},
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("GitHub API " + response.status + " (" + folder + ")");
+      const content = await response.json();
+      if (!Array.isArray(content)) throw new Error("檔案清單無法解析");
+      return content.filter(x => x.type === "file" && /^\d{4}-\d{2}-\d{2}\.json\.gz$/.test(x.name))
+                    .map(x => x.name.slice(0, 10));
+    }
+    try {
+      const [live, historical] = await Promise.all([
+        dates("market_daily"), dates("market_backfill_pilot")
+      ]);
+      const shared = new Set(live.filter(d => historical.includes(d)));
+      const all = [...new Set([...live, ...historical])].sort();
+      $("daily").textContent = live.length.toLocaleString();
+      $("research").textContent = historical.length.toLocaleString();
+      $("total").textContent = all.length.toLocaleString();
+      const capped = Math.min(all.length, 121);
+      $("fill").style.width = (capped / 121 * 100).toFixed(1) + "%";
+      $("progressLabel").textContent = all.length + " / 121";
+      $("progressBar").setAttribute("aria-valuenow", String(capped));
+      $("coverage").textContent = all.length >= 121
+        ? "已累積至少121個行情觀測日期，但不代表已通過技術、基本面或回測資格。"
+        : "尚缺至少 " + (121 - all.length) + " 個觀測日期才達到研究用初步門檻；不是正式交易日數驗證。";
+      $("recent").replaceChildren();
+      all.slice(-12).reverse().forEach(d => {
+        const node = document.createElement("span");
+        node.className = "day";
+        node.textContent = d;
+        $("recent").appendChild(node);
+      });
+      $("state").textContent = shared.size
+        ? "注意：兩類來源有 " + shared.size + " 個重複日期，已去重；資料需人工核對。"
+        : "已讀取 GitHub 公開行情檔案清單 · 資料來源分開保存";
+    } catch (err) {
+      $("state").textContent = "暫時無法取得資料數量：" + err.message + "。可能是 GitHub API 配額或連線限制。";
+      $("coverage").textContent = "無法驗證目前資料天數，請勿將空白當成0日或推定量化系統已準備完成。";
+      $("recent").textContent = "未能載入資料日期";
+    }
+  })();
+  </script>
+</body>
+</html>
