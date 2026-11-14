@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 
 from backfill_market_pilot import PilotError, combine, url_for
-from collect_market_history import compressed_snapshot
+from collect_market_history import compressed_snapshot, roc_to_iso
 from market_pipeline.quant_screen import official_universe
 from quant_run import fetch_csv, fetch_json, fetch_text
 
@@ -20,8 +20,37 @@ class BackfillError(Exception):
     pass
 
 
+HOLIDAY_URL = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"
+
+
+def scheduled_market_closures(payload, year):
+    # The official table lists first/last trading days as well as holidays.
+    if not isinstance(payload, list) or len(payload) < 8:
+        raise BackfillError("official_holiday_calendar_invalid")
+    closed = set()
+    seen_year = 0
+    for item in payload:
+        if not isinstance(item, dict):
+            raise BackfillError("official_holiday_row_invalid")
+        try:
+            day = date.fromisoformat(roc_to_iso(item["Date"]))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise BackfillError("official_holiday_date_invalid") from exc
+        if day.year != year:
+            continue
+        seen_year += 1
+        name, detail = str(item.get("Name", "")), str(item.get("Description", ""))
+        if "開始交易" in name or "最後交易" in name:
+            continue
+        if day.weekday() < 5 and ("放假" in detail or "無交易" in name):
+            closed.add(day.isoformat())
+    if seen_year < 8:
+        raise BackfillError("official_holiday_calendar_year_unavailable")
+    return closed
+
+
 def archive_plan(daily_dir, research_dir, *, lookback_days=220,
-                 max_successes=20, max_attempts=30):
+                 max_successes=20, max_attempts=30, official_closed_dates=()):
     """Newest first, explicit cap, never rewrite verified daily or pilot snapshots."""
     if not 180 <= lookback_days <= 300:
         raise BackfillError("lookback_out_of_safe_range")
@@ -39,23 +68,41 @@ def archive_plan(daily_dir, research_dir, *, lookback_days=220,
     candidates = [first_day - timedelta(days=i)
                   for i in range(1, lookback_days + 1)]
     pending = [d.isoformat() for d in candidates
-               if d.weekday() < 5 and d.isoformat() not in existing]
+               if (d.weekday() < 5 and d.isoformat() not in existing
+                   and d.isoformat() not in official_closed_dates)]
     return {"firstDaily": first_day.isoformat(), "researchExisting": len(existing),
             "candidates": pending, "candidateCount": len(pending),
-            "maxSuccesses": max_successes, "maxAttempts": max_attempts}
+            "maxSuccesses": max_successes, "maxAttempts": max_attempts,
+            "officialScheduledClosuresSkipped": sorted(set(official_closed_dates))}
 
 
 def run_batch(daily_dir, research_dir, *,
               fetch=fetch_text, roster_fetch_json=fetch_json,
-              roster_fetch_csv=fetch_csv, sleep=time.sleep, delay=2.5,
+              roster_fetch_csv=fetch_csv, holiday_fetch=None,
+              sleep=time.sleep, delay=2.5,
               lookback_days=220, max_successes=20, max_attempts=30):
     if delay < 2.5:
         raise BackfillError("minimum_delay_2_5_seconds_required")
     plan = archive_plan(daily_dir, research_dir, lookback_days=lookback_days,
                         max_successes=max_successes, max_attempts=max_attempts)
+    calendar_status = "not_checked"
+    calendar_error = None
+    if holiday_fetch is not None:
+        try:
+            closed = scheduled_market_closures(
+                holiday_fetch(HOLIDAY_URL), year=int(plan["firstDaily"][:4]))
+            plan = archive_plan(daily_dir, research_dir, lookback_days=lookback_days,
+                                max_successes=max_successes, max_attempts=max_attempts,
+                                official_closed_dates=closed)
+            calendar_status = "official_year_verified"
+        except (BackfillError, ValueError, TypeError, KeyError, OSError) as exc:
+            calendar_status = "unavailable_not_assumed_open"
+            calendar_error = str(exc) if isinstance(exc, BackfillError) else "holiday_source_or_schema_error"
     if not plan["candidates"]:
         return {"status": "no_candidates", "new": [], "errors": [],
-                "existingResearchDays": plan["researchExisting"], "newCount": 0}
+                "existingResearchDays": plan["researchExisting"], "newCount": 0,
+                "holidayCalendarStatus": calendar_status,
+                "officialScheduledClosuresSkipped": plan["officialScheduledClosuresSkipped"]}
     universe = official_universe(roster_fetch_json, roster_fetch_csv)
     if universe.get("errors"):
         raise BackfillError("official_roster_unavailable")
@@ -98,6 +145,9 @@ def run_batch(daily_dir, research_dir, *,
             "existingResearchDays": plan["researchExisting"],
             "researchDaysNow": total,
             "remainingWeekdayCandidatesAtStart": plan["candidateCount"],
+            "holidayCalendarStatus": calendar_status,
+            "holidayCalendarError": calendar_error,
+            "officialScheduledClosuresSkipped": plan["officialScheduledClosuresSkipped"],
             "historicalPointInTimeUniverseAvailable": False,
             "volumeScopesCompatibleForDirectMerge": False,
             "productionDataModified": False,
@@ -117,6 +167,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     try:
         report = run_batch(args.daily_dir, args.research_dir,
+                           holiday_fetch=fetch_json,
                            lookback_days=args.lookback_days,
                            max_successes=args.max_successes,
                            max_attempts=args.max_attempts)
