@@ -43,7 +43,7 @@ def twse(row=None, day="20261113"):
 
 def tpex(row=None, day="115/11/13"):
     return {"stat": "ok", "date": day, "tables": [
-        {"fields": inst.TPEX_HEADERS,
+        {"fields": list(inst.TPEX_HEADERS),
          "data": [row if row is not None else tpex_row()]}]}
 
 
