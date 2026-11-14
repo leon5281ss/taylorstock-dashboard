@@ -121,3 +121,12 @@ Token 無效、IP 封鎖或配額耗盡會中止同一 client 後續認證呼叫
 - [財政部 RSS](https://www.mof.gov.tw/Rss)
 - [國安基金官方新聞稿](https://www.mof.gov.tw/multiplehtml/383)
 - [金管會官方新聞稿](https://www.fsc.gov.tw/ch/home.jsp?id=96&parentpath=0,2)
+
+
+## FinMind API 402 與 GitHub Actions 配額保護
+
+若 FinMind 預檢回報 HTTP 402、rate_limited，代表該 Token 本次請求未取得服務（可能是額度／方案限制），**不可視為正常資料、不應重試到用完更多額度**。請查看 GitHub Actions → Daily Stock Report → 當次 FinMind 2303 preflight 的匿名診斷及 FinMind 帳戶的官方用量／額度頁；不要把 Token 或任何秘密直接貼在 Issue、Actions 日誌、聊天或公開網頁。
+
+為了避免研發期間頻繁提交歷史行情而重複扣除 FinMind API 配額，Daily Stock Report 現在**不再因 main 分支每次 push 自動執行**。仍保留台灣工作日21:00、21:20、21:40排程，以及 Actions → Daily Stock Report → Run workflow 手動執行；Telegram 僅在原本允許的 schedule／workflow_dispatch 且開關開啟時可能通知，絕不因研發資料的 push 發送。
+
+網頁部署以正常成功的 Daily Stock Report 發布；若 FinMind 402 阻擋，最近一次成功報告仍可能保留於網站，但需查驗報告顯示的交易日期，不能視為最新即時行情。
