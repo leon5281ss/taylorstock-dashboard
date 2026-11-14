@@ -8,6 +8,7 @@ from datetime import date
 import hashlib
 import json
 from pathlib import Path
+import re
 import time
 from urllib.parse import urlencode
 
@@ -120,13 +121,25 @@ def inspect(payload, market, day, min_rows=300):
     matched = [c for c in codes if len(c) == 4 and c.isdigit()]
     if len(set(matched)) < min_rows * .70:
         raise ValuationProbeError("valuation_company_coverage_too_low")
+    verified = "date" in payload
+    if verified:
+        response_date = payload["date"]
+        if not isinstance(response_date, str) or not re.fullmatch(r"[0-9]{8}", response_date):
+            raise ValuationProbeError("valuation_response_date_format_" + market)
+        try:
+            reported_day = date.fromisoformat(response_date)
+        except ValueError as exc:
+            raise ValuationProbeError("valuation_response_date_calendar_" + market) from exc
+        if reported_day != date.fromisoformat(day):
+            raise ValuationProbeError("valuation_response_date_mismatch_" + market)
     return {"requestedDate": day,
+            "responseDate": day if verified else None,
             "recordCount": len(rows), "fourDigitSymbols": len(set(matched)),
             "columns": fields,
             "rowsSha256": hashlib.sha256(json.dumps(
                 rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             ).hexdigest(),
-            "responseDateExplicitlyVerified": False,
+            "responseDateExplicitlyVerified": verified,
             "issuerStatementPublicReleaseDatesVerified": False,
             "historicalPointInTimeUniverseVerified": False,
             "dailyValuationReadyToRank": False}
@@ -143,14 +156,17 @@ def run(first_day, second_day, *, fetch=fetch_text, sleep=time.sleep, delay=3):
         for day in days:
             sleep(delay)
             data = json.loads(fetch(source_url(market, day)))
-            records.append(inspect(data, market, day))
+            record = inspect(data, market, day)
+            if not record["responseDateExplicitlyVerified"]:
+                raise ValuationProbeError("valuation_response_date_missing_" + market)
+            records.append(record)
         if records[0]["rowsSha256"] == records[1]["rowsSha256"]:
             raise ValuationProbeError("two_valuation_days_indistinguishable_" + market)
         groups[market] = records
     return {"status": "dated_valuation_source_probe_research_only",
             "dates": days, "markets": groups,
             "bothHistoricalDatesDiffer": True,
-            "responseDateExplicitlyVerified": False,
+            "responseDateExplicitlyVerified": True,
             "issuerFinancialDisclosureTimingVerified": False,
             "fiveYearEPSAndROEHistoryAvailable": False,
             "corporateActionAdjusted": False,
