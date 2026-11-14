@@ -1,0 +1,53 @@
+name: Research Price History Coverage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/research_price_coverage.py"
+      - "tests/test_research_price_coverage.py"
+      - ".github/workflows/research-coverage.yml"
+  workflow_run:
+    workflows: ["Automatic Research History Backfill"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-research-price-coverage
+  cancel-in-progress: false
+
+jobs:
+  coverage:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Python regression and public-schema privacy tests
+        run: python -m unittest discover -s tests -v
+      - name: Analyze price coverage, never blend trading volume or publish ranking
+        run: >-
+          python scripts/research_price_coverage.py
+          --daily-dir data/market_daily
+          --history-dir data/market_backfill_pilot
+          --output research-coverage-output
+      - name: Upload auditable research-only coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-price-coverage
+          path: research-coverage-output/research-price-coverage.json
+          if-no-files-found: warn
+          retention-days: 30
