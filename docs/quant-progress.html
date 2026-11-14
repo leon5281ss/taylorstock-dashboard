@@ -53,12 +53,15 @@
       <div class="card"><div id="research" class="number">—</div><div class="metricname">獨立歷史研究日期</div></div>
       <div class="card"><div id="total" class="number">—</div><div class="metricname">不重複的行情觀測日期</div></div>
       <div class="card"><div id="institutional" class="number">—</div><div class="metricname">法人研究資料日期</div></div>
+      <div class="card"><div id="tdccOfficial" class="number">—</div><div class="metricname">TDCC 官方週快照</div></div>
+      <div class="card"><div id="tdccExternal" class="number">—</div><div class="metricname">TDCC 第三方歷史研究週（未驗證來源）</div></div>
     </div>
     <section class="card">
       <div class="between"><h2>研究價格資料累積門檻</h2><strong id="progressLabel">— / 121</strong></div>
       <div class="bar" role="progressbar" aria-label="已保存行情觀測日期" aria-valuemin="0" aria-valuemax="121" aria-valuenow="0" id="progressBar"><div class="fill" id="fill"></div></div>
       <p class="note" id="coverage">載入後顯示觀測日期數量。</p>
       <p class="note" id="institutionalCoverage">載入後顯示三大法人研究資料與行情日期的交集。</p>
+      <p class="note" id="tdccProvenance">TDCC 官方最新週及第三方歷史週分開統計；第三方週未核實原始官方發布時點，不可用作正式籌碼評分。</p>
       <div class="block">121 個觀測日期<strong>只是初步資料門檻</strong>。仍需校正除權息、還原歷史當時公司名單、確認交易日曆及成交量口徑，才能進行可靠的樣本外回測。</div>
     </section>
     <section class="card">
@@ -68,7 +71,8 @@
       <div class="phase"><span>5／20／60／121日價格完整性稽核</span><span class="ok">已建立自動檢查</span></div>
       <div class="phase"><span>除權息／減資與下市公司回補</span><span>未完成，禁止正式回測</span></div>
       <div class="phase"><span>三大法人歷史資料研究歸檔</span><span class="ok">自動歸檔中 · 未通過完整籌碼驗證</span></div>
-      <div class="phase"><span>融資／借券／TDCC、財報與估值的歷史時間點資料</span><span>未完成</span></div>
+      <div class="phase"><span>TDCC 官方每週快照</span><span class="ok">最新週有獨立研究資料 · 歷史未全部認證</span></div>
+      <div class="phase"><span>融資／借券、財報與估值的歷史時間點資料</span><span>未完成</span></div>
       <div class="phase"><span>樣本外扣手續費、證交稅及滑價的實績驗證</span><span>未完成</span></div>
       <div class="phase"><span>全市場Top 10與Telegram量化選股通知</span><span>尚未啟用 · 不提供買賣訊號</span></div>
     </section>
@@ -102,9 +106,10 @@
                     .map(x => x.name.slice(0, 10));
     }
     try {
-      const [live, historical, institutional] = await Promise.all([
+      const [live, historical, institutional, tdccOfficial, tdccExternal] = await Promise.all([
         dates("market_daily"), dates("market_backfill_pilot"),
-        dates("institutional_research")
+        dates("institutional_research"),
+        dates("tdcc_weekly_research"), dates("tdcc_external_history_research")
       ]);
       const shared = new Set(live.filter(d => historical.includes(d)));
       const all = [...new Set([...live, ...historical])].sort();
@@ -112,6 +117,8 @@
       $("research").textContent = historical.length.toLocaleString();
       $("total").textContent = all.length.toLocaleString();
       $("institutional").textContent = institutional.length.toLocaleString();
+      $("tdccOfficial").textContent = tdccOfficial.length.toLocaleString();
+      $("tdccExternal").textContent = tdccExternal.length.toLocaleString();
       const observedSet = new Set(all);
       const institutionCovered = institutional.filter(day => observedSet.has(day));
       $("institutionalCoverage").textContent = "目前法人研究資料與已歸檔行情的日期交集：" + institutionCovered.length + " / " + all.length + "。僅代表日期重疊，非籌碼因子完整率。";
@@ -136,6 +143,7 @@
       $("state").textContent = "暫時無法取得資料數量：" + err.message + "。可能是 GitHub API 配額或連線限制。";
       $("coverage").textContent = "無法驗證目前資料天數，請勿將空白當成0日或推定量化系統已準備完成。";
       $("institutionalCoverage").textContent = "法人資料日期數暫時不可驗證。";
+      $("tdccProvenance").textContent = "無法驗證官方與第三方 TDCC 週數；不推定歷史資料已通過。";
       $("recent").textContent = "未能載入資料日期";
     }
   })();
