@@ -50,6 +50,23 @@ def parse_month(raw, code, month):
     return fields, output
 
 
+def window_status(rows):
+    missing = [row["date"] for row in rows
+               if not all(valid_volume(row[key]) for key in ("archiveShares", "stockDayShares"))]
+    mismatches = [row["date"] for row in rows if row["status"] == "different"]
+    complete = len(rows) == 60 and len({row["date"] for row in rows}) == 60 and not missing
+    return {"numericWindowComplete": complete,
+            "numericWindowAllMatch": complete and not mismatches,
+            "scopeVerifiedWindowComplete": False,
+            "missingDates": missing, "mismatchDates": mismatches}
+
+
+def exit_status(report):
+    if not report["dataAcquisitionComplete"]:
+        return 1
+    return 0 if report["numericComparisonPassed"] else 2
+
+
 def compare(dates, codes, daily_dir, historical_dir, captures, *, download=False):
     sources, errors, monthly, archives = [], [], {}, {}
     manifest_path = captures / "twse-stockday-manifest.json"
@@ -95,12 +112,11 @@ def compare(dates, codes, daily_dir, historical_dir, captures, *, download=False
             errors.append({"date": day, "source": source, "reason": str(exc)})
     stocks, compared = [], set()
     for code in codes:
-        rows, missing = [], []
+        rows = []
         for day in dates:
             a = archives.get(day, {}).get(code)
             b = monthly.get((code, day[:7]), {}).get(day)
             if a is None or b is None:
-                missing.append(day)
                 state = "missing_or_invalid_evidence"
             else:
                 compared.add(day)
@@ -109,10 +125,14 @@ def compare(dates, codes, daily_dir, historical_dir, captures, *, download=False
                          "stockDayShares": b, "stockDaySource": monthly_url(code, day[:7]),
                          "archiveSource": URLS["TWSE"] if (daily_dir / (day + ".json.gz")).exists()
                          else url_for("TWSE", day), "status": state})
-        stocks.append({"code": code, "numericWindowComplete": not missing,
-                       "scopeVerifiedWindowComplete": False, "missingDates": missing,
+        stocks.append({"code": code, **window_status(rows),
                        "scopeUnverifiedDates": dates, "comparisons": rows})
-    return {"requiredDates": dates, "numericComparisonDates": sorted(compared),
+    return {"dataAcquisitionComplete": bool(stocks) and not errors and all(
+                stock["numericWindowComplete"] for stock in stocks),
+            "numericComparisonPassed": bool(stocks) and all(
+                stock["numericWindowAllMatch"] for stock in stocks),
+            "scopeVerificationPassed": False,
+            "requiredDates": dates, "numericComparisonDates": sorted(compared),
             "missingComparisonDates": sorted(set(dates) - compared), "sources": sources,
             "errors": errors, "stocks": stocks, "scopeVerifiedDays": 0,
             "stocksWithVerifiedWindow": 0, "tpexUnverifiedDifferences": 2533,
@@ -137,7 +157,9 @@ def main():
     (args.captures / "stockday-volume-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"TWSE numeric comparisons: {len(report['numericComparisonDates'])}/{len(dates)}")
-    return int(bool(report["errors"]) or any(s["missingDates"] for s in report["stocks"]))
+    for key in ("dataAcquisitionComplete", "numericComparisonPassed", "scopeVerificationPassed"):
+        print(f"{key}={str(report[key]).lower()}")
+    return exit_status(report)
 
 
 if __name__ == "__main__":

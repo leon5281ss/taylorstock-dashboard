@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from compare_twse_stockday_volume import parse_month
+from compare_twse_stockday_volume import exit_status, parse_month, window_status
 
 
 class TwseStockDayVolumeTests(unittest.TestCase):
@@ -24,3 +24,21 @@ class TwseStockDayVolumeTests(unittest.TestCase):
             payload["fields"][1] = field
             with self.assertRaisesRegex(ValueError, error):
                 parse_month(json.dumps(payload), code, "2026-11")
+
+    def test_full_window_distinguishes_match_missing_and_invalid(self):
+        rows = [{"date": str(i), "archiveShares": 0, "stockDayShares": 0,
+                 "status": "explicit_zero"} for i in range(60)]
+        for value, status, complete, matches in (
+            (0, "explicit_zero", True, True), (1, "different", True, False),
+            (None, "missing_or_invalid_evidence", False, False),
+            (True, "missing_or_invalid_evidence", False, False),
+        ):
+            with self.subTest(value=value):
+                rows[-1].update(stockDayShares=value, status=status)
+                result = window_status(rows)
+                self.assertEqual(result["numericWindowComplete"], complete)
+                self.assertEqual(result["numericWindowAllMatch"], matches)
+                self.assertFalse(result["scopeVerifiedWindowComplete"])
+                self.assertEqual(exit_status({"dataAcquisitionComplete": complete,
+                                              "numericComparisonPassed": matches}),
+                                 0 if matches else 2 if complete else 1)
