@@ -1,0 +1,63 @@
+name: Official Corporate Action Reference Research
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/collect_corporate_action_research.py"
+      - "tests/test_corporate_action_research.py"
+      - ".github/workflows/corporate-action-research.yml"
+  schedule:
+    # Asia/Taipei 23:15 on weekdays; ex-right reference events research only.
+    - cron: "15 15 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-corporate-action-research
+  cancel-in-progress: false
+
+jobs:
+  research-events:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate all public-data and privacy regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Read official TWSE / TPEx ex-rights reference events
+        run: >-
+          python scripts/collect_corporate_action_research.py
+          --archive-dir data/corporate_action_research
+          --output corporate-output
+      - name: Upload safe public-data research diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corporate-action-reference-research-status
+          path: corporate-output/corporate-reference-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit only validated public reference events
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- data/corporate_action_research
+          if git diff --cached --quiet; then
+            echo "No new validated research reference events."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(quant): refresh official corporate action reference research"
+          git push origin HEAD:main
