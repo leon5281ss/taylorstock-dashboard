@@ -164,5 +164,37 @@ class ResearchHistoryBatchTests(unittest.TestCase):
         self.assertEqual(report["newCount"], 0)
         self.assertEqual(report["unverifiedDays"], 1)
 
+    def test_saved_official_2026_calendar_skips_known_holidays_only(self):
+        source = Path(__file__).resolve().parents[1]/"config/official_twse_holidays_2026.json"
+        closed = batch.saved_official_closures(source, 2026)
+        for day in ("2026-10-09", "2026-10-26", "2026-09-25", "2026-09-28"):
+            self.assertIn(day, closed)
+        self.assertNotIn("2026-10-23", closed)
+        self.assertNotIn("2026-11-10", closed)
+        plan = batch.archive_plan(self.daily, self.research,
+                                  official_closed_dates=closed)
+        self.assertNotIn("2026-10-26", plan["candidates"])
+        self.assertIn("2026-10-23", plan["candidates"])
+
+    def test_fallback_handles_live_calendar_rolling_to_another_year(self):
+        source = Path(__file__).resolve().parents[1]/"config/official_twse_holidays_2026.json"
+        with patch.object(batch, "official_universe", return_value=universe()):
+            report = batch.run_batch(self.daily, self.research,
+                                     holiday_fetch=lambda _: [
+                                         {"Name": "假日", "Date": "1160101", "Description": "放假"}] * 12,
+                                     saved_calendar_path=source,
+                                     fetch=lambda _: "{}",
+                                     sleep=lambda _: None,
+                                     max_successes=1, max_attempts=1)
+        self.assertEqual(report["holidayCalendarStatus"], "saved_official_reference_year_verified")
+        self.assertEqual(report["newCount"], 0)
+        self.assertIn("2026-10-09", report["officialScheduledClosuresSkipped"])
+        self.assertEqual(report["unverifiedDays"], 1)
+
+    def test_saved_calendar_invalid_year_fails_closed(self):
+        source = Path(__file__).resolve().parents[1]/"config/official_twse_holidays_2026.json"
+        with self.assertRaises(batch.BackfillError):
+            batch.saved_official_closures(source, 2025)
+
 if __name__ == "__main__":
     unittest.main()
