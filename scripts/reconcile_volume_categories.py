@@ -69,7 +69,7 @@ def fetch(url):
         return response.read()
 
 
-def audit(baseline, folder, *, reuse=False):
+def audit(baseline, folder, *, manifest=None):
     days = [item for item in baseline["comparisons"] if item["market"] == "TPEX"]
     sources, results = [], []
     for item in days:
@@ -80,16 +80,25 @@ def audit(baseline, folder, *, reuse=False):
             path = folder / f"{category}-{day}.json"
             record = {"category": category, "source": url, "requestedDate": day,
                       "responseDate": None, "fields": None, "unit": None,
-                      "captureMode": "replayed_raw" if reuse else "direct_https"}
+                      "captureMode": "replayed_raw" if manifest is not None else "direct_https"}
             try:
-                if reuse:
+                if manifest is not None:
+                    expected = manifest.get((category, day), {})
+                    if (expected.get("source"), expected.get("rawFile")) != (url, path.name):
+                        raise ValueError("capture_manifest_entry_missing_or_mismatched")
                     raw = path.read_bytes()
+                    if sha256(raw).hexdigest() != expected.get("sha256"):
+                        raise ValueError("raw_sha256_mismatch")
                 else:
                     time.sleep(2.5)
                     raw = fetch(url)
                     path.write_bytes(raw)
                 record.update(rawFile=path.name, sha256=sha256(raw).hexdigest())
                 data = parse(category, day, raw)
+                if manifest is not None and any(
+                    data[k] != expected.get(k) for k in ("responseDate", "fields", "unit")
+                ):
+                    raise ValueError("replayed_metadata_mismatch")
                 reports[category] = data["values"]
                 record.update({k: data[k] for k in ("responseDate", "fields", "unit")})
                 record["rows"] = len(data["values"])
@@ -108,7 +117,11 @@ def audit(baseline, folder, *, reuse=False):
                             "rawCategoryQuantities": values, "oddLotResidualShares": residual,
                             "missingCategories": [k for k, v in values.items() if v is None],
                             "scopeOverlapUnresolved": True, "fullyReconciled": False})
-    return {"sources": sources, "stocks": results, "summary": {
+    complete = bool(days) and not any("error" in record for record in sources)
+    return {"auditExecuted": True, "officialReportsComplete": complete,
+            "scopeVerificationComplete": False,
+            "status": "research_only" if complete else "failed_official_evidence",
+            "sources": sources, "stocks": results, "summary": {
                 "fullyReconciled": 0, "unreconciled": len(results),
                 "missingCategory": sum(bool(r["missingCategories"]) for r in results),
                 "scopeOverlapUnresolved": len(results), "confirmedScopeOverlap": 0,
@@ -133,11 +146,25 @@ def main():
     args = cli.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     baseline = json.loads(args.baseline.read_bytes())
-    report = audit(baseline, args.output, reuse=args.reuse_raw)
+    manifest = None
+    manifest_path = args.output / "capture-manifest.json"
+    if args.reuse_raw:
+        try:
+            entries = json.loads(manifest_path.read_bytes())
+            manifest = {(entry["category"], entry["requestedDate"]): entry for entry in entries}
+            if len(manifest) != len(entries):
+                manifest = {}
+        except (OSError, ValueError, TypeError, KeyError):
+            manifest = {}
+    report = audit(baseline, args.output, manifest=manifest)
+    if not args.reuse_raw:
+        manifest_path.write_text(json.dumps(report["sources"], ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
     (args.output / "classification-report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(report["summary"])
+    print(report["status"], report["summary"])
+    return int(not report["officialReportsComplete"])
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

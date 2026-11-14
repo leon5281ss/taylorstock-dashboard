@@ -3,9 +3,12 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+from hashlib import sha256
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from reconcile_volume_categories import parse, source_url
+from reconcile_volume_categories import REPORTS, audit, parse, source_url
 
 
 class VolumeCategoryTests(unittest.TestCase):
@@ -46,3 +49,35 @@ class VolumeCategoryTests(unittest.TestCase):
         table["data"].append(table["data"][0])
         with self.assertRaisesRegex(ValueError, "duplicate_block_transaction"):
             parse("quote", "2026-11-13", json.dumps(payload))
+
+    def test_all_and_partial_download_failures(self):
+        day = "2026-11-13"
+        baseline = {"comparisons": [{"market": "TPEX", "date": day, "stocks": []}]}
+        raw = json.dumps(self.payload()).encode()
+        with TemporaryDirectory() as directory, patch("reconcile_volume_categories.time.sleep"):
+            for successful in (0, 1):
+                with self.subTest(successful=successful), patch(
+                    "reconcile_volume_categories.fetch",
+                    side_effect=[raw] * successful + [OSError("offline")] * (4 - successful),
+                ):
+                    report = audit(baseline, Path(directory))
+                    self.assertTrue(report["auditExecuted"])
+                    self.assertFalse(report["officialReportsComplete"])
+                    self.assertEqual(report["status"], "failed_official_evidence")
+                    self.assertEqual(sum("error" in r for r in report["sources"]), 4 - successful)
+
+    def test_replay_rejects_corruption_and_hash_mismatch(self):
+        day = "2026-11-13"
+        category = "oddQuote"
+        baseline = {"comparisons": [{"market": "TPEX", "date": day, "stocks": []}]}
+        name = f"{category}-{day}.json"
+        with TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / name).write_bytes(b"corrupt")
+            for digest, error in (("0" * 64, "raw_sha256_mismatch"),
+                                  (sha256(b"corrupt").hexdigest(), "Expecting value")):
+                manifest = {(category, day): {"source": source_url(category, day),
+                                             "rawFile": name, "sha256": digest}}
+                report = audit(baseline, folder, manifest=manifest)
+                self.assertFalse(report["officialReportsComplete"])
+                self.assertIn(error, report["sources"][0]["error"])
