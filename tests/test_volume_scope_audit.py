@@ -32,3 +32,17 @@ class VolumeScopeAuditTests(unittest.TestCase):
         payload["tables"][0]["data"] *= 2
         with self.assertRaisesRegex(PilotError, "duplicate_historical_volume_code"):
             compare("2026-11-13", "TPEX", {"6488": 30000}, payload)
+
+    def test_coverage_direction_and_relative_difference(self):
+        payload = tpex("2026-11-13")
+        rows = payload["tables"][0]["data"]
+        rows.extend([["6489", "100", "1", "1", "1", "1", "1"], ["6490", "--", "1", "1", "1", "1", "1"]])
+        result = compare("2026-11-13", "TPEX",
+                         {"6488": 40000, "6490": True, "1234": 0}, payload)
+        summary = result["summary"]
+        self.assertEqual(summary["coverage"], {"both": 2, "daily_only": 1, "historical_only": 1})
+        self.assertEqual(summary["historicalLower"], 1)
+        self.assertEqual(summary["absoluteDifferenceShares"], 10000)
+        self.assertEqual(summary["meanRelativeDifferencePercent"], -25)
+        self.assertEqual((summary["invalidDaily"], summary["invalidHistorical"]), (1, 1))
+        self.assertTrue(all(row["v5v60"] is None for row in result["stocks"]))
