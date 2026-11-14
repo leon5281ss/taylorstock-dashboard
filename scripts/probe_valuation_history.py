@@ -72,14 +72,47 @@ def inspect(payload, market, day, min_rows=300):
         codes = [str(r[fields.index("證券代號")]).strip()
                  for r in rows if isinstance(r, list) and len(r) == len(fields)]
     elif market == "TPEX":
-        rows = payload.get("aaData")
-        count = payload.get("iTotalRecords")
-        if (not isinstance(rows, list) or not isinstance(count, int)
-                or count != len(rows) or len(rows) < min_rows
-                or any(not isinstance(r, list) or len(r) < 7 for r in rows)):
-            raise ValuationProbeError("tpex_valuation_schema_or_coverage:"+json.dumps(shape, sort_keys=True))
-        fields = ["code", "name", "pe", "dividend", "dividendYear", "yield", "pb"]
-        codes = [str(r[0]).strip() for r in rows]
+        # TPEx now serves the dated valuation report as a table-style JSON:
+        # {"date":..., "stat":"ok", "tables":[{"fields":[...],"data":[...]}]}.
+        # Retain support for older legacy aaData only if complete.
+        if isinstance(payload.get("tables"), list):
+            if (str(payload.get("stat", "")).lower() != "ok"
+                    or len(payload["tables"]) != 1):
+                raise ValuationProbeError("tpex_valuation_stat_or_table_invalid")
+            tab = payload["tables"][0]
+            fields, rows = tab.get("fields"), tab.get("data")
+            if not isinstance(fields, list) or not isinstance(rows, list):
+                raise ValuationProbeError("tpex_valuation_schema_or_coverage")
+            if not all(isinstance(f, str) for f in fields):
+                raise ValuationProbeError("tpex_valuation_columns_invalid")
+            code_columns = [i for i, f in enumerate(fields)
+                            if f.strip().replace(" ", "") in
+                            ("代號", "股票代號", "證券代號")]
+            if (len(code_columns) != 1
+                    or not any("本益比" in f for f in fields)
+                    or not any("殖利率" in f for f in fields)
+                    or not any("股價淨值比" in f for f in fields)):
+                raise ValuationProbeError("tpex_valuation_columns_changed:" +
+                                          json.dumps(fields, ensure_ascii=False))
+            if "totalCount" in tab and (
+                    not isinstance(tab["totalCount"], int)
+                    or tab["totalCount"] != len(rows)):
+                raise ValuationProbeError("tpex_valuation_response_truncated")
+            if len(rows) < min_rows or any(
+                    not isinstance(row, list) or len(row) != len(fields)
+                    for row in rows):
+                raise ValuationProbeError("tpex_valuation_schema_or_coverage")
+            codes = [str(row[code_columns[0]]).strip() for row in rows]
+        else:
+            rows = payload.get("aaData")
+            count = payload.get("iTotalRecords")
+            if (not isinstance(rows, list) or not isinstance(count, int)
+                    or count != len(rows) or len(rows) < min_rows
+                    or any(not isinstance(r, list) or len(r) < 7 for r in rows)):
+                raise ValuationProbeError("tpex_valuation_schema_or_coverage:" +
+                                          json.dumps(shape, sort_keys=True))
+            fields = ["code", "name", "pe", "dividend", "dividendYear", "yield", "pb"]
+            codes = [str(r[0]).strip() for r in rows]
     else:
         raise ValuationProbeError("unknown_market")
     if len(codes) != len(rows):
