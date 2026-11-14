@@ -185,6 +185,8 @@ def run_batch(daily_dir, research_dir, *,
                 calendar_status = "saved_official_reference_year_verified"
             except BackfillError:
                 pass
+    if holiday_fetch is not None and calendar_status == "unavailable_not_assumed_open":
+        raise BackfillError("verified_official_calendar_required")
     extraordinary = verified_extraordinary_closures(
         extraordinary_calendar_path, year=int(plan["firstDaily"][:4]))
     if extraordinary:
@@ -213,13 +215,18 @@ def run_batch(daily_dir, research_dir, *,
                 source = fetch(url_for(market, day))
                 responses[market] = json.loads(source)
             snapshot = combine(day, universe, responses)
+            if any(value != "explicit_response_date"
+                   for value in snapshot["sourceDateEvidence"].values()):
+                raise BackfillError("official_response_date_evidence_required")
             if snapshot["asOf"] != day:
                 raise BackfillError("response_day_invariant_failed")
             dest = Path(research_dir) / (day + ".json.gz")
             if dest.exists():
                 raise BackfillError("race_condition_existing_archive")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(compressed_snapshot(snapshot))
+            compressed = compressed_snapshot(snapshot)
+            with dest.open("xb") as archive:
+                archive.write(compressed)
             new.append({"date": day,
                         "counts": snapshot["marketCounts"],
                         "dateEvidence": snapshot["sourceDateEvidence"],

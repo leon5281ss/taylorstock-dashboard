@@ -54,6 +54,33 @@ class ResearchPriceCoverageTests(unittest.TestCase):
         return audit_coverage(self.daily, self.history,
                               today=date(2026, 11, 14), minimum=(1, 1))
 
+    def test_calendar_and_market_specific_stock_gaps(self):
+        self.put("2026-11-13")
+        self.put("2026-11-11", history=True)
+        extra = payload("2026-11-11", historical=True)
+        extra["stocks"].append(dict(extra["stocks"][0], code="2317"))
+        extra["marketCounts"]["TWSE"] += 1
+        (self.history / "2026-11-11.json.gz").write_bytes(compressed_snapshot(extra))
+        report = audit_coverage(self.daily, self.history, today=date(2026, 11, 14),
+                                minimum=(1, 1), closed_dates={"2026-11-12"})
+        info = report["completeness"]
+        self.assertEqual(len(info["daily"]), 242)
+        self.assertNotIn("2026-11-12", {row["date"] for row in info["daily"]})
+        self.assertEqual(info["markets"]["TWSE"]["shortfall"], 119)
+        self.assertEqual(info["markets"]["TPEX"]["shortfall"], 120)
+        self.assertIn("2026-11-11", info["markets"]["TPEX"]["missingOrUnverifiedDates"])
+        stock = next(row for row in info["stocks"] if row["code"] == "2317")
+        self.assertEqual(stock["verifiedDays"], 1)
+        self.assertEqual(stock["missingQuoteDates"], ["2026-11-13"])
+
+    def test_missing_volume_rejects_snapshot(self):
+        snapshot = payload("2026-11-13")
+        del snapshot["stocks"][0]["volume"]
+        path = self.daily / "2026-11-13.json.gz"
+        path.write_bytes(compressed_snapshot(snapshot))
+        with self.assertRaisesRegex(CoverageError, "invalid_volume_or_turnover"):
+            self.audit()
+
     def test_one_day_only_never_invents_five_or_121(self):
         self.put("2026-11-13")
         result = self.audit()

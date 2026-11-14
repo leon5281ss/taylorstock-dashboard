@@ -102,6 +102,24 @@ class ResearchHistoryBatchTests(unittest.TestCase):
         self.assertEqual((self.research / "2026-11-10.json.gz").read_bytes(),
                          b"not-overwritten")
 
+    def test_tpex_failure_or_wrong_date_prevents_partial_archive(self):
+        for response, reason in (
+            ({"stat": "no data"}, "source_not_ok_TPEX"),
+            (tpex("2026-11-09"), "official_response_date_mismatch"),
+            ({key: value for key, value in tpex("2026-11-10").items() if key != "date"},
+             "official_response_date_evidence_required"),
+        ):
+            with self.subTest(response=response):
+                def fetch(url):
+                    return json.dumps(response if "tpex.org.tw" in url else twse("2026-11-10"))
+
+                with patch.object(batch, "official_universe", return_value=universe()):
+                    result = batch.run_batch(self.daily, self.research, fetch=fetch,
+                                             sleep=lambda _: None, max_successes=1, max_attempts=1)
+                self.assertEqual(result["newCount"], 0)
+                self.assertIn(reason, result["errors"][0]["reason"])
+                self.assertEqual(list(self.research.glob("*.json.gz")), [])
+
     def test_source_failure_cannot_forge_new_date(self):
         def fail(_):
             raise ValueError("source down")
@@ -154,15 +172,10 @@ class ResearchHistoryBatchTests(unittest.TestCase):
     def test_unavailable_calendar_does_not_invent_market_closure(self):
         with self.assertRaisesRegex(batch.BackfillError, "official_holiday_calendar"):
             batch.scheduled_market_closures([], 2026)
-        with patch.object(batch, "official_universe", return_value=universe()):
-            report = batch.run_batch(self.daily, self.research,
-                                     holiday_fetch=lambda _: [],
-                                     fetch=lambda _: "{}",
-                                     sleep=lambda _: None,
-                                     max_successes=1, max_attempts=1)
-        self.assertEqual(report["holidayCalendarStatus"], "unavailable_not_assumed_open")
-        self.assertEqual(report["newCount"], 0)
-        self.assertEqual(report["unverifiedDays"], 1)
+        with patch.object(batch, "official_universe") as roster:
+            with self.assertRaisesRegex(batch.BackfillError, "verified_official_calendar_required"):
+                batch.run_batch(self.daily, self.research, holiday_fetch=lambda _: [])
+        roster.assert_not_called()
 
     def test_saved_official_2026_calendar_skips_known_holidays_only(self):
         source = Path(__file__).resolve().parents[1]/"config/official_twse_holidays_2026.json"
