@@ -49,9 +49,35 @@ class TdccWeeklyTests(unittest.TestCase):
         self.assertFalse(result["publishable"])
         self.assertEqual(result["companies"][0]["depositoryShares"], 1500)
 
-    def test_change_in_tier_shares_breaks_total_identity(self):
-        with self.assertRaisesRegex(tdcc.TdccError, "holding_total_mismatch"):
-            self.parse("sum")
+    def test_one_issuer_mismatch_is_quarantined_not_fabricated(self):
+        result = self.parse("sum")
+        self.assertEqual(result["companyCount"], 1)
+        self.assertEqual(result["companies"][0]["code"], "6488")
+        self.assertEqual(result["quarantinedTotalMismatchCount"], 1)
+        self.assertEqual(result["quarantinedTotalMismatchExampleCodes"], ["2330"])
+        self.assertFalse(result["publishable"])
+
+    def test_widespread_mismatch_cannot_publish_snapshot(self):
+        source = fixture().splitlines()
+        base = ["20261113", "1111", "", "10", "", "6.67"]
+        market = {str(x): {} for x in range(2000, 2030)}
+        for code in market:
+            for tier in range(1, 18):
+                row = base[:]
+                row[1] = code
+                row[2] = str(tier)
+                row[4] = str(101 if tier == 15 else
+                             100 if tier <= 15 else 0 if tier == 16 else 1500)
+                if tier == 17:
+                    row[5] = "100"
+                elif tier == 16:
+                    row[5] = "0"
+                source.append(",".join(row))
+        groups = roster()
+        groups["markets"]["TWSE"].update(market)
+        with self.assertRaisesRegex(tdcc.TdccError, "widespread_share_total_mismatch"):
+            tdcc.parse_csv("\n".join(source), groups,
+                           now=date(2026, 11, 15), min_companies=1)
 
     def test_missing_holder_tier_is_not_forged(self):
         result = self.parse("missing")

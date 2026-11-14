@@ -121,6 +121,7 @@ def parse_csv(raw, roster, *, now=None, min_companies=1000):
     if weekly_date is None or count < 25000:
         raise TdccError("tdcc_source_rows_insufficient")
     data = []
+    mismatch_codes = []
     for code, levels in sorted(buckets.items()):
         if set(levels) != REQUIRED_LEVELS:
             continue  # thin/irregular issuers are not fabricated as complete
@@ -130,7 +131,8 @@ def parse_csv(raw, roster, *, now=None, min_companies=1000):
         # Level 16 is a settlement/discrepancy adjustment; it is not a holder tier.
         summed = sum(levels[k][1] for k in range(1, 17))
         if summed != total:
-            raise TdccError("tdcc_holding_total_mismatch")
+            mismatch_codes.append(code)
+            continue  # quarantine issuer with inconsistent total, never use its ratio
         if abs(levels[17][2]-100.0) > 1.0:
             raise TdccError("tdcc_total_percentage_invalid")
         data.append({"code": code,
@@ -140,6 +142,11 @@ def parse_csv(raw, roster, *, now=None, min_companies=1000):
                      "tier15Shares": levels[15][1],
                      "tier15PercentOfDepository": levels[15][2],
                      "level16AdjustmentShares": levels[16][1]})
+    # Quarantining a small number of issuer-specific anomalies preserves
+    # independently verified companies, but widespread mismatches indicate a
+    # systemic schema/accounting problem and block the entire snapshot.
+    if len(mismatch_codes) > max(25, len(buckets)//20):
+        raise TdccError("tdcc_widespread_share_total_mismatch")
     if len(data) < min_companies:
         raise TdccError("tdcc_valid_company_coverage_too_low")
     return {"schemaVersion": 1, "asOf": weekly_date.isoformat(),
@@ -148,6 +155,8 @@ def parse_csv(raw, roster, *, now=None, min_companies=1000):
             "officialIssuerRoster": "current_not_point_in_time",
             "companies": data, "companyCount": len(data),
             "sourceRowCount": count,
+            "quarantinedTotalMismatchCount": len(mismatch_codes),
+            "quarantinedTotalMismatchExampleCodes": mismatch_codes[:12],
             "allCompanyLevelsVerified": True,
             "tier15IsNotIdenticalToEveryLargeHolderDefinition": True,
             "corporateActionsAndAllFactorsComplete": False,
@@ -176,6 +185,7 @@ def main():
         diagnostic = {"status": "verified", "week": result["asOf"],
                       "companies": result["companyCount"],
                       "sourceRows": result["sourceRowCount"],
+                      "quarantinedTotalMismatches": result["quarantinedTotalMismatchCount"],
                       "dailyFactorReady": False, "top10": None}
         rc = 0
         print("TDCC weekly official research:", result["asOf"],
