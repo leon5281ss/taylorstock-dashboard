@@ -77,14 +77,31 @@ class DatedValuationProbeTests(unittest.TestCase):
             p.run("2026-11-12", "2026-11-13",
                   fetch=lambda _: json.dumps(twse()), sleep=lambda _: None)
 
-    def test_rejects_wrong_or_malformed_response_date(self):
+    def test_rejects_wrong_format_invalid_calendar_and_mismatched_dates(self):
+        cases = {
+            "format": ("2026-11-13", "115/11/13", "20261113 ", "２０２６１１１３", 20261113, None),
+            "calendar": ("20260229", "20261131", "20261301", "00001113"),
+            "mismatch": ("20261112", "20240229"),
+        }
         for market, fixture in (("TWSE", twse), ("TPEX", tpex)):
-            for reported in ("20261112", "20261131", 20261113, None):
-                with self.subTest(market=market, reported=reported):
-                    payload = fixture()
-                    payload["date"] = reported
-                    with self.assertRaisesRegex(p.ValuationProbeError, "response_date_mismatch"):
-                        p.inspect(payload, market, "2026-11-13")
+            for reason, reported_dates in cases.items():
+                for reported in reported_dates:
+                    with self.subTest(market=market, reported=reported):
+                        payload = fixture()
+                        payload["date"] = reported
+                        with self.assertRaisesRegex(
+                            p.ValuationProbeError, f"response_date_{reason}_{market}"
+                        ):
+                            p.inspect(payload, market, "2026-11-13")
+
+    def test_accepts_valid_leap_day(self):
+        for market, fixture in (("TWSE", twse), ("TPEX", tpex)):
+            with self.subTest(market=market):
+                payload = fixture()
+                payload["date"] = "20240229"
+                result = p.inspect(payload, market, "2024-02-29")
+                self.assertEqual(result["responseDate"], "2024-02-29")
+                self.assertTrue(result["responseDateExplicitlyVerified"])
 
     def test_no_unbounded_rate(self):
         with self.assertRaises(p.ValuationProbeError):

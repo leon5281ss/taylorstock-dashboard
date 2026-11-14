@@ -8,6 +8,7 @@ from datetime import date
 import hashlib
 import json
 from pathlib import Path
+import re
 import time
 from urllib.parse import urlencode
 
@@ -120,10 +121,17 @@ def inspect(payload, market, day, min_rows=300):
     matched = [c for c in codes if len(c) == 4 and c.isdigit()]
     if len(set(matched)) < min_rows * .70:
         raise ValuationProbeError("valuation_company_coverage_too_low")
-    expected = date.fromisoformat(day).strftime("%Y%m%d")
-    if "date" in payload and payload["date"] != expected:
-        raise ValuationProbeError("valuation_response_date_mismatch_" + market)
-    verified = payload.get("date") == expected
+    verified = "date" in payload
+    if verified:
+        response_date = payload["date"]
+        if not isinstance(response_date, str) or not re.fullmatch(r"[0-9]{8}", response_date):
+            raise ValuationProbeError("valuation_response_date_format_" + market)
+        try:
+            reported_day = date.fromisoformat(response_date)
+        except ValueError as exc:
+            raise ValuationProbeError("valuation_response_date_calendar_" + market) from exc
+        if reported_day != date.fromisoformat(day):
+            raise ValuationProbeError("valuation_response_date_mismatch_" + market)
     return {"requestedDate": day,
             "responseDate": day if verified else None,
             "recordCount": len(rows), "fourDigitSymbols": len(set(matched)),
