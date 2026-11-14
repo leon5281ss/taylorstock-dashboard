@@ -13,7 +13,7 @@ class QuantProgressPageTests(unittest.TestCase):
         self.assertIn('dates("market_daily")', page)
         self.assertIn('dates("market_backfill_pilot")', page)
         self.assertIn("121", page)
-        self.assertIn("top10", page.lower())
+        self.assertIn("top 10", page.lower())
         self.assertIn("未還原", page)
         self.assertIn("不提供自動下單", page)
         self.assertIn('cache: "no-store"', page)
