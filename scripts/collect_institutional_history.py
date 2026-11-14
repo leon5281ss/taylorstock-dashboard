@@ -113,12 +113,12 @@ def normalized_rows(payload, market, day, roster, min_coverage=0.65):
 
 def official_institutional_day(day, *, fetch=fetch_text,
                                roster_json=fetch_json, roster_csv=fetch_csv,
-                               sleep=time.sleep, delay=2.5,
+                               company_universe=None, sleep=time.sleep, delay=2.5,
                                min_coverage=0.65):
     if delay < 2.5:
         raise InstitutionalError("rate_limit_required")
     date.fromisoformat(day)
-    universe = official_universe(roster_json, roster_csv)
+    universe = company_universe if company_universe is not None else official_universe(roster_json, roster_csv)
     if universe.get("errors"):
         raise InstitutionalError("official_company_roster_unavailable")
     parsed = {}
