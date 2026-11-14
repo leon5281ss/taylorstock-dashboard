@@ -39,6 +39,24 @@ def source_url(market, day):
 def inspect(payload, market, day, min_rows=300):
     if not isinstance(payload, dict):
         raise ValuationProbeError("valuation_response_must_be_dict")
+    # Log shape only (keys, row counts, types), never raw financial values.
+    # This identifies provider-side API migrations without swallowing errors.
+    shape = {
+        "keys": sorted(payload.keys())[:16],
+        "aaRows": len(payload["aaData"]) if isinstance(payload.get("aaData"), list) else None,
+        "iTotalRecordsType": type(payload.get("iTotalRecords")).__name__,
+        "tables": len(payload["tables"]) if isinstance(payload.get("tables"), list) else None,
+        "firstTableFields": (len(payload["tables"][0].get("fields", []))
+                             if isinstance(payload.get("tables"), list)
+                             and payload["tables"] and isinstance(payload["tables"][0], dict) else None),
+        "firstTableRows": (len(payload["tables"][0].get("data", []))
+                           if isinstance(payload.get("tables"), list)
+                           and payload["tables"] and isinstance(payload["tables"][0], dict) else None),
+        "aaFirstRowColumns": (len(payload["aaData"][0])
+                               if isinstance(payload.get("aaData"), list)
+                               and payload["aaData"] and isinstance(payload["aaData"][0], list)
+                               else None),
+    }
     if market == "TWSE":
         if str(payload.get("stat", "")).lower() != "ok":
             raise ValuationProbeError("twse_valuation_not_ok")
@@ -59,7 +77,7 @@ def inspect(payload, market, day, min_rows=300):
         if (not isinstance(rows, list) or not isinstance(count, int)
                 or count != len(rows) or len(rows) < min_rows
                 or any(not isinstance(r, list) or len(r) < 7 for r in rows)):
-            raise ValuationProbeError("tpex_valuation_schema_or_coverage")
+            raise ValuationProbeError("tpex_valuation_schema_or_coverage:"+json.dumps(shape, sort_keys=True))
         fields = ["code", "name", "pe", "dividend", "dividendYear", "yield", "pb"]
         codes = [str(r[0]).strip() for r in rows]
     else:
