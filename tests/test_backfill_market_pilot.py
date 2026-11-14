@@ -4,10 +4,12 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import backfill_market_pilot
 from backfill_market_pilot import (PilotError, combine, normalize_header,
                                    pilot_dates, records, tables, url_for)
 
@@ -38,6 +40,15 @@ def tpex(day="1151104"):
 
 
 class HistoricalPilotTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.minimum_override = patch.dict(backfill_market_pilot.MINIMUM_ROSTER, {"TWSE": 1, "TPEX": 1})
+        cls.minimum_override.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.minimum_override.stop()
+
     def test_source_urls_have_requested_historical_date(self):
         self.assertIn("20261104", url_for("TWSE", "2026-11-04"))
         self.assertIn("2026%2F11%2F04", url_for("TPEX", "2026-11-04"))
