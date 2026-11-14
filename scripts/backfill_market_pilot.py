@@ -7,6 +7,7 @@ mix these rows into live archives or use for trade recommendations.
 import argparse
 from datetime import date, datetime, timedelta
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -15,7 +16,7 @@ from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from collect_market_history import compressed_snapshot, number, roc_to_iso
+from collect_market_history import IngestionError, compressed_snapshot, number, roc_to_iso
 from market_pipeline.quant_screen import official_universe
 from quant_run import fetch_json, fetch_csv, fetch_text
 
@@ -77,7 +78,7 @@ def _source_date(response, requested):
         return "query_only_unverified"
     try:
         parsed = roc_to_iso(raw)
-    except ValueError as e:
+    except (ValueError, IngestionError) as e:
         raise PilotError("unrecognized_official_response_date") from e
     if parsed != requested:
         raise PilotError("official_response_date_mismatch")
@@ -120,7 +121,7 @@ def records(response, market, requested, roster, minimum_ratio=0.75):
                 prices["low"] > min(prices["open"], prices["close"], prices["high"])):
             raise PilotError("invalid_ohlc_" + market)
         result.append({"code": code, "market": market, **prices})
-    if len(result) < int(len(roster) * minimum_ratio):
+    if len(result) < max(1, math.ceil(len(roster) * minimum_ratio)):
         raise PilotError("incomplete_historical_coverage_" + market)
     return {"rows": sorted(result, key=lambda r: r["code"]),
             "quoted": len(result),
