@@ -20,7 +20,7 @@
     .subtitle {max-width:740px;color:var(--muted);font-size:16px}
     .eyebrow {text-transform:uppercase;letter-spacing:.15em;color:var(--teal);font-size:12px;font-weight:800}
     .statusline {font-size:13px;color:var(--muted);margin:24px 0}
-    .grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
     .card {background:var(--panel);border:1px solid var(--line);padding:24px;border-radius:18px;min-width:0}
     .number {font-size:clamp(27px,5vw,42px);line-height:1.2;font-weight:800;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
     .metricname {color:var(--muted);font-size:14px;margin-top:5px}
@@ -38,7 +38,7 @@
     .recent {display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
     .day {border:1px solid var(--line);background:#202d42;border-radius:8px;font-size:12px;padding:5px 8px;color:#c6d5e8}
     footer {color:var(--muted);font-size:13px;line-height:1.8;border-top:1px solid var(--line);margin-top:40px;padding-top:22px}
-    @media (max-width:640px){.grid{grid-template-columns:1fr 1fr}.grid .card:last-child{grid-column:1/-1}.card{padding:18px}.container{padding-top:20px}.phase{flex-direction:column;gap:3px}.phase span:last-child{text-align:left}}
+    @media (max-width:640px){.grid{grid-template-columns:1fr 1fr}.grid .card:last-child{grid-column:auto}.card{padding:18px}.container{padding-top:20px}.phase{flex-direction:column;gap:3px}.phase span:last-child{text-align:left}}
   </style>
 </head>
 <body>
@@ -48,15 +48,17 @@
     <h1>全上市櫃量化研發進度</h1>
     <p class="subtitle">追蹤官方市場行情逐日歸檔與歷史研究資料的累積情形。這不是股票推薦排行榜，也不顯示私人持股、成本或交易金鑰。</p>
     <p id="state" class="statusline" role="status" aria-live="polite">讀取 GitHub 公開資料中…</p>
-    <div class="grid" aria-label="已保存市場行情日期數量">
+    <div class="grid" aria-label="行情及法人研究資料已保存日期數量">
       <div class="card"><div id="daily" class="number">—</div><div class="metricname">正式每日行情日期</div></div>
       <div class="card"><div id="research" class="number">—</div><div class="metricname">獨立歷史研究日期</div></div>
       <div class="card"><div id="total" class="number">—</div><div class="metricname">不重複的行情觀測日期</div></div>
+      <div class="card"><div id="institutional" class="number">—</div><div class="metricname">法人研究資料日期</div></div>
     </div>
     <section class="card">
       <div class="between"><h2>研究價格資料累積門檻</h2><strong id="progressLabel">— / 121</strong></div>
       <div class="bar" role="progressbar" aria-label="已保存行情觀測日期" aria-valuemin="0" aria-valuemax="121" aria-valuenow="0" id="progressBar"><div class="fill" id="fill"></div></div>
       <p class="note" id="coverage">載入後顯示觀測日期數量。</p>
+      <p class="note" id="institutionalCoverage">載入後顯示三大法人研究資料與行情日期的交集。</p>
       <div class="block">121 個觀測日期<strong>只是初步資料門檻</strong>。仍需校正除權息、還原歷史當時公司名單、確認交易日曆及成交量口徑，才能進行可靠的樣本外回測。</div>
     </section>
     <section class="card">
@@ -65,7 +67,8 @@
       <div class="phase"><span>歷史行情研究回補與來源交叉比對</span><span class="ok">自動歸檔中 · 尚未校正</span></div>
       <div class="phase"><span>5／20／60／121日價格完整性稽核</span><span class="ok">已建立自動檢查</span></div>
       <div class="phase"><span>除權息／減資與下市公司回補</span><span>未完成，禁止正式回測</span></div>
-      <div class="phase"><span>籌碼／財報／估值的歷史時間點資料</span><span>未完成</span></div>
+      <div class="phase"><span>三大法人歷史資料研究歸檔</span><span class="ok">自動歸檔中 · 未通過完整籌碼驗證</span></div>
+      <div class="phase"><span>融資／借券／TDCC、財報與估值的歷史時間點資料</span><span>未完成</span></div>
       <div class="phase"><span>樣本外扣手續費、證交稅及滑價的實績驗證</span><span>未完成</span></div>
       <div class="phase"><span>全市場Top 10與Telegram量化選股通知</span><span>尚未啟用 · 不提供買賣訊號</span></div>
     </section>
@@ -99,14 +102,19 @@
                     .map(x => x.name.slice(0, 10));
     }
     try {
-      const [live, historical] = await Promise.all([
-        dates("market_daily"), dates("market_backfill_pilot")
+      const [live, historical, institutional] = await Promise.all([
+        dates("market_daily"), dates("market_backfill_pilot"),
+        dates("institutional_research")
       ]);
       const shared = new Set(live.filter(d => historical.includes(d)));
       const all = [...new Set([...live, ...historical])].sort();
       $("daily").textContent = live.length.toLocaleString();
       $("research").textContent = historical.length.toLocaleString();
       $("total").textContent = all.length.toLocaleString();
+      $("institutional").textContent = institutional.length.toLocaleString();
+      const observedSet = new Set(all);
+      const institutionCovered = institutional.filter(day => observedSet.has(day));
+      $("institutionalCoverage").textContent = "目前法人研究資料與已歸檔行情的日期交集：" + institutionCovered.length + " / " + all.length + "。僅代表日期重疊，非籌碼因子完整率。";
       const capped = Math.min(all.length, 121);
       $("fill").style.width = (capped / 121 * 100).toFixed(1) + "%";
       $("progressLabel").textContent = all.length + " / 121";
@@ -127,6 +135,7 @@
     } catch (err) {
       $("state").textContent = "暫時無法取得資料數量：" + err.message + "。可能是 GitHub API 配額或連線限制。";
       $("coverage").textContent = "無法驗證目前資料天數，請勿將空白當成0日或推定量化系統已準備完成。";
+      $("institutionalCoverage").textContent = "法人資料日期數暫時不可驗證。";
       $("recent").textContent = "未能載入資料日期";
     }
   })();
