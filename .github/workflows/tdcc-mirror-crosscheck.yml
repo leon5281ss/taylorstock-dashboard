@@ -1,0 +1,43 @@
+name: TDCC External Weekly Archive Crosscheck
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/crosscheck_tdcc_mirror.py"
+      - "tests/test_tdcc_external_crosscheck.py"
+      - ".github/workflows/tdcc-mirror-crosscheck.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-tdcc-mirror-crosscheck
+  cancel-in-progress: false
+
+jobs:
+  crosscheck:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run complete offline public research test suite
+        run: python -m unittest discover -s tests -v
+      - name: Compare the latest public historical mirror week with official TDCC week
+        run: >-
+          python scripts/crosscheck_tdcc_mirror.py
+          --official-dir data/tdcc_weekly_research
+          --output tdcc-crosscheck-output
+      - name: Upload read-only source-comparison diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdcc-latest-external-mirror-crosscheck
+          path: tdcc-crosscheck-output/tdcc-mirror-crosscheck.json
+          if-no-files-found: warn
+          retention-days: 30
