@@ -1,0 +1,75 @@
+name: Official History Backfill Pilot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_market_pilot.py"
+      - "tests/test_backfill_market_pilot.py"
+      - ".github/workflows/backfill-pilot.yml"
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start day YYYY-MM-DD (before first daily archive)"
+        required: true
+        default: "2026-11-04"
+        type: string
+      end_date:
+        description: "End day YYYY-MM-DD (maximum 5 weekdays)"
+        required: true
+        default: "2026-11-10"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: history-backfill-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run offline integrity and schema regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Fetch at most five historical weekdays from dated official sources
+        env:
+          BACKFILL_START: ${{ inputs.start_date || '2026-11-04' }}
+          BACKFILL_END: ${{ inputs.end_date || '2026-11-10' }}
+        run: >-
+          python scripts/backfill_market_pilot.py
+          --start-date "$BACKFILL_START"
+          --end-date "$BACKFILL_END"
+          --archive-dir data/market_backfill_pilot
+          --daily-dir data/market_daily
+          --diagnostics pilot-output
+      - name: Upload safe pilot diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-backfill-pilot-status
+          path: pilot-output/history-pilot-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Persist isolated historical pilot data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- data/market_backfill_pilot
+          if git diff --cached --quiet; then
+            echo "No new pilot dates. Nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(quant): store dated official historical pilot snapshots"
+          git push origin HEAD:main
