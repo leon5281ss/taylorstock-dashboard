@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0,20,40 13 * * 1-5"
-  push:
-    branches: [main]
 
 permissions:
   contents: read
