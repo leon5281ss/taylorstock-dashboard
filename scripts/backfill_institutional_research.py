@@ -56,6 +56,29 @@ def plan_dates(daily_dir, price_research_dir, institutional_dir, *,
                     blob["marketCounts"]["TPEX"] < 500 or
                     blob["publishable"] is not False):
                 raise InstitutionalBackfillError("existing_institutional_archive_not_verified")
+            rows = blob.get("rows")
+            if (not isinstance(rows, list) or
+                    len(rows) != blob["marketCounts"]["TWSE"]+blob["marketCounts"]["TPEX"]):
+                raise InstitutionalBackfillError("existing_institutional_rows_count_invalid")
+            by_market = {"TWSE": 0, "TPEX": 0}
+            observed = set()
+            for row in rows:
+                market, code = row.get("market"), row.get("code")
+                if (market not in by_market or not isinstance(code, str)
+                        or len(code) != 4 or not code.isdigit()
+                        or (market, code) in observed):
+                    raise InstitutionalBackfillError("existing_institutional_symbol_invalid")
+                observed.add((market, code))
+                by_market[market] += 1
+                keys = ("foreignNet", "trustNet", "dealerNet", "totalNet",
+                        "foreignDealerNetNotAddedToForeign", "dealerSelfNet", "dealerHedgeNet")
+                if any(type(row.get(k)) is not int for k in keys):
+                    raise InstitutionalBackfillError("existing_institutional_net_invalid")
+                if (row["foreignNet"] + row["trustNet"] + row["dealerNet"] != row["totalNet"]
+                        or row["dealerSelfNet"] + row["dealerHedgeNet"] != row["dealerNet"]):
+                    raise InstitutionalBackfillError("existing_institutional_net_identity_invalid")
+            if by_market != blob["marketCounts"]:
+                raise InstitutionalBackfillError("existing_institutional_market_counts_invalid")
             existing.add(blob["asOf"])
         except (OSError, EOFError, ValueError, TypeError, KeyError, gzip.BadGzipFile) as exc:
             raise InstitutionalBackfillError("existing_institutional_archive_corrupt") from exc
