@@ -1,0 +1,55 @@
+name: Joint Research Factor Date Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_research_factor_dates.py"
+      - "tests/test_factor_date_coverage.py"
+      - ".github/workflows/factor-date-audit.yml"
+  workflow_run:
+    workflows:
+      - "Automatic Institutional History Research Backfill"
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-research-factor-coverage
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Verify official-price and institutional-market symbol intersections by date
+        run: >-
+          python scripts/audit_research_factor_dates.py
+          --daily-dir data/market_daily
+          --research-dir data/market_backfill_pilot
+          --institutional-dir data/institutional_research
+          --output factor-joint-output
+      - name: Upload public-data-only factor date coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-factor-date-coverage
+          path: factor-joint-output/factor-date-coverage.json
+          if-no-files-found: warn
+          retention-days: 30
