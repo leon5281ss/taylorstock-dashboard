@@ -1,0 +1,60 @@
+name: Automatic Official Margin Balance Research Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_margin_research.py"
+      - "tests/test_margin_research_batch.py"
+      - ".github/workflows/margin-research-backfill.yml"
+  schedule:
+    # Taipei 02:10, 10:10, 18:10; distinct from other write jobs.
+    - cron: "10 2,10,18 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-official-margin-research-history
+  cancel-in-progress: false
+
+jobs:
+  research-history:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline public schema, finance and privacy tests
+        run: python -m unittest discover -s tests -v
+      - name: Incrementally acquire verified historical margin data from dated official sources
+        run: >-
+          python scripts/backfill_margin_research.py
+          --daily-dir data/market_daily
+          --price-research-dir data/market_backfill_pilot
+          --margin-dir data/margin_research
+          --output margin-batch-output
+          --max-successes 12
+          --max-attempts 20
+      - name: Upload research-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-margin-research-batch-status
+          path: margin-batch-output/margin-batch-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit ONLY vetted historical margin archives with safe retry
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/margin_research
+          "data(quant): incrementally archive dated margin balance research"
