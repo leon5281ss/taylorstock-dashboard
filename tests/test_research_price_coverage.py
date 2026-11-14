@@ -52,7 +52,7 @@ class ResearchPriceCoverageTests(unittest.TestCase):
 
     def audit(self):
         return audit_coverage(self.daily, self.history,
-                              today=date(2026, 11, 14), minimum=(1, 1))
+                              today=date(2026, 11, 14), minimum=(1, 1), closed_dates=set())
 
     def test_calendar_and_market_specific_stock_gaps(self):
         self.put("2026-11-13")
@@ -69,9 +69,10 @@ class ResearchPriceCoverageTests(unittest.TestCase):
         self.assertEqual(info["markets"]["TWSE"]["shortfall"], 119)
         self.assertEqual(info["markets"]["TPEX"]["shortfall"], 120)
         self.assertIn("2026-11-11", info["markets"]["TPEX"]["missingOrUnverifiedDates"])
-        stock = next(row for row in info["stocks"] if row["code"] == "2317")
+        stock = next(row for row in info["incompleteStocks"] if row["code"] == "2317")
         self.assertEqual(stock["verifiedDays"], 1)
-        self.assertEqual(stock["missingQuoteDates"], ["2026-11-13"])
+        self.assertIn("2026-11-13", stock["missingQuoteDates"])
+        self.assertEqual(stock["observedQuoteDates"], ["2026-11-11"])
 
     def test_missing_volume_rejects_snapshot(self):
         snapshot = payload("2026-11-13")
@@ -102,21 +103,21 @@ class ResearchPriceCoverageTests(unittest.TestCase):
         self.assertEqual(result["historicalResearchDays"], 5)
         self.assertEqual(result["historicalSourceDateNotExplicitCount"], 5)
         self.assertEqual(result["pricePresenceByWindow"]["5"],
-                         {"TWSE": 1, "TPEX": 1})
+                         {"TWSE": 1, "TPEX": 0})
         self.assertEqual(result["pricePresenceByWindow"]["121"],
                          {"TWSE": 0, "TPEX": 0})
         self.assertFalse(result["volumeScopeCompatible"])
         self.assertFalse(result["corporateActionAdjusted"])
 
-    def test_intermittent_absence_does_not_fill_missing_symbols(self):
+    def test_missing_trading_date_cannot_be_replaced_by_older_archives(self):
         day = date(2026, 11, 4)
         for n in range(4):
             self.put((day + timedelta(days=n)).isoformat(),
                      history=True, missing_tpex=(n == 1))
         self.put("2026-11-11")
         result = audit_coverage(self.daily, self.history,
-                                today=date(2026, 11, 14), minimum=(1, 0))
-        self.assertEqual(result["pricePresenceByWindow"]["5"]["TWSE"], 1)
+                                today=date(2026, 11, 14), minimum=(1, 0), closed_dates=set())
+        self.assertEqual(result["pricePresenceByWindow"]["5"]["TWSE"], 0)
         self.assertEqual(result["pricePresenceByWindow"]["5"]["TPEX"], 0)
 
     def test_histories_never_overlap_production_without_manual_review(self):

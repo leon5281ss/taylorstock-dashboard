@@ -91,11 +91,13 @@ def load_snapshot(path, *, historical, minimum=(700, 500)):
         raise CoverageError("corrupt_or_incomplete_gzip") from exc
 
 
-def completeness(days, closed_dates):
+def completeness(days, closed_dates, calendar_year):
     latest = date.fromisoformat(max(days))
     candidate_dates = []
     day = latest
     while len(candidate_dates) < TARGET_DAYS:
+        if calendar_year is not None and day.year != calendar_year:
+            return None
         key = day.isoformat()
         if day.weekday() < 5 and key not in closed_dates:
             candidate_dates.append(key)
@@ -115,6 +117,12 @@ def completeness(days, closed_dates):
             daily.append({"date": key, "market": market,
                           "quoteCount": snapshot["counts"][market] if snapshot else 0,
                           "dateEvidence": evidence, "verified": key in verified[market]})
+    stocks = [
+        {"market": market, "code": code, "verifiedDays": len(observed[market, code]),
+         "observedQuoteDates": sorted(observed[market, code]),
+         "missingQuoteDates": sorted(set(candidate_dates) - observed[market, code])}
+        for market, code in sorted(set(days[latest.isoformat()]["closes"]) | observed.keys())
+    ]
     return {
         "targetDaysPerMarket": TARGET_DAYS,
         "daily": daily,
@@ -124,15 +132,12 @@ def completeness(days, closed_dates):
                      "shortfall": TARGET_DAYS - len(verified[market])}
             for market in MARKETS
         },
-        "stocks": [
-            {"market": market, "code": code, "verifiedDays": len(observed[market, code]),
-             "missingQuoteDates": sorted(verified[market] - observed[market, code])}
-            for market, code in sorted(set(days[latest.isoformat()]["closes"]) | observed.keys())
-        ],
+        "completeStocks": [stock for stock in stocks if not stock["missingQuoteDates"]],
+        "incompleteStocks": [stock for stock in stocks if stock["missingQuoteDates"]],
     }
 
 
-def audit_coverage(daily_dir, historical_dir, *, today=None, minimum=(700, 500), closed_dates=None):
+def audit_coverage(daily_dir, historical_dir, *, today=None, minimum=(700, 500), closed_dates=None, calendar_year=None):
     today = today or datetime.now(ZoneInfo("Asia/Taipei")).date()
     daily_paths = sorted(Path(daily_dir).glob("*.json.gz"))
     history_paths = sorted(Path(historical_dir).glob("*.json.gz"))
@@ -153,24 +158,25 @@ def audit_coverage(daily_dir, historical_dir, *, today=None, minimum=(700, 500),
     if days[latest]["kind"] != "production_daily":
         raise CoverageError("latest_date_not_production_daily")
     current = set(days[latest]["closes"])
+    detail = completeness(days, closed_dates, calendar_year) if closed_dates is not None else None
+    target_dates = sorted({row["date"] for row in detail["daily"]}) if detail else []
     cohorts = {}
     for required in (5, 20, 60, 121):
-        if len(ordered_days) < required:
-            cohorts[str(required)] = {"TWSE": 0, "TPEX": 0}
+        target = set(target_dates[-required:])
+        cohorts[str(required)] = dict.fromkeys(MARKETS, 0)
+        if len(target) != required:
             continue
-        target = ordered_days[-required:]
-        complete = [key for key in current if all(key in days[d]["closes"] for d in target)]
-        cohorts[str(required)] = {
-            market: sum(1 for code_market, _ in complete if code_market == market)
-            for market in ("TWSE", "TPEX")
-        }
+        for stock in detail["completeStocks"] + detail["incompleteStocks"]:
+            key = (stock["market"], stock["code"])
+            if key in current and target.isdisjoint(stock["missingQuoteDates"]):
+                cohorts[str(required)][stock["market"]] += 1
     query_only = sorted(d for d, snapshot in days.items()
                         if "query_only_unverified" in snapshot["sourceDateEvidence"].values())
     return {"status": "research_price_coverage_only",
             "latestObservedDate": latest,
             "latestSource": days[latest]["kind"],
             "totalObservedDates": len(ordered_days),
-            "completeness": completeness(days, closed_dates) if closed_dates is not None else None,
+            "completeness": detail,
             "productionDays": len(daily_paths),
             "historicalResearchDays": len(history_paths),
             "earliestObservedDate": ordered_days[0],
@@ -205,10 +211,9 @@ def main():
         closed = saved_official_closures(Path("config/official_twse_holidays_2026.json"), 2026)
         closed |= verified_extraordinary_closures(
             Path("config/verified_extraordinary_market_closures_2026.json"), 2026)
-        report = audit_coverage(args.daily_dir, args.history_dir, closed_dates=closed)
-        if (report["completeness"]["daily"][0]["date"][:4] != "2026"
-                or report["latestObservedDate"][:4] != "2026"):
-            report["completeness"] = None
+        report = audit_coverage(args.daily_dir, args.history_dir,
+                                closed_dates=closed, calendar_year=2026)
+        if report["completeness"] is None:
             report["completenessUnavailableReason"] = "official_calendar_year_unavailable"
         result = 0
         print("Price research coverage: " + str(report["totalObservedDates"]) +
