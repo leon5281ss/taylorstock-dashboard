@@ -126,5 +126,43 @@ class ResearchHistoryBatchTests(unittest.TestCase):
             batch.archive_plan(self.daily, self.research)
 
 
+    def test_official_holidays_skip_only_genuinely_closed_days(self):
+        fixtures = [
+            {"Name": "國慶日", "Date": "1151009", "Description": "補假1日"},
+            {"Name": "紀念日", "Date": "1151026", "Description": "補假1日"},
+            {"Name": "市場無交易，僅辦理結算交割作業", "Date": "1150212", "Description": ""},
+            {"Name": "國曆新年開始交易日", "Date": "1150102", "Description": "開始交易。"},
+            {"Name": "農曆春節前最後交易日", "Date": "1150211", "Description": "最後交易。"},
+            {"Name": "其他", "Date": "1150620", "Description": ""},
+            {"Name": "其他", "Date": "1150621", "Description": ""},
+            {"Name": "其他", "Date": "1150622", "Description": ""},
+            {"Name": "其他", "Date": "1150623", "Description": ""},
+        ]
+        closed = batch.scheduled_market_closures(fixtures, 2026)
+        self.assertIn("2026-10-09", closed)
+        self.assertIn("2026-10-26", closed)
+        self.assertIn("2026-02-12", closed)
+        self.assertNotIn("2026-01-02", closed)
+        self.assertNotIn("2026-02-11", closed)
+        self.assertNotIn("2026-10-23", closed)
+        plan = batch.archive_plan(self.daily, self.research,
+                                  official_closed_dates=closed)
+        self.assertNotIn("2026-10-09", plan["candidates"])
+        self.assertNotIn("2026-10-26", plan["candidates"])
+        self.assertIn("2026-10-23", plan["candidates"])
+
+    def test_unavailable_calendar_does_not_invent_market_closure(self):
+        with self.assertRaisesRegex(batch.BackfillError, "official_holiday_calendar"):
+            batch.scheduled_market_closures([], 2026)
+        with patch.object(batch, "official_universe", return_value=universe()):
+            report = batch.run_batch(self.daily, self.research,
+                                     holiday_fetch=lambda _: [],
+                                     fetch=lambda _: "{}",
+                                     sleep=lambda _: None,
+                                     max_successes=1, max_attempts=1)
+        self.assertEqual(report["holidayCalendarStatus"], "unavailable_not_assumed_open")
+        self.assertEqual(report["newCount"], 0)
+        self.assertEqual(report["unverifiedDays"], 1)
+
 if __name__ == "__main__":
     unittest.main()
