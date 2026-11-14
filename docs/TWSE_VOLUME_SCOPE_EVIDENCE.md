@@ -21,3 +21,40 @@
 重播指令為 `python scripts/compare_twse_stockday_volume.py <證據目錄> --codes 1101 1301 2317 2330 2881`。證據目錄保存 20 份官方原始回應、逐檔來源 URL、SHA-256 及稽核報告。
 
 各端點的盤別映射尚待官方版本證據或可重現的分項驗證。已通過口徑驗證 0 檔。TPEx 仍有 2,533 筆差異未驗證，1,869 筆零股算術吻合，664 筆有殘差。研究維持 V5/V60=null、top10=null、publishable=false。
+
+
+## 取得原始證據與重播
+
+原始回應及本機報告未提交。GitHub CI 執行程式測試，五檔 300 筆及新增 12 份回應的雜湊驗收在本機執行。
+
+在儲存庫根目錄使用全新的證據目錄，執行：
+
+```text
+python scripts/compare_twse_stockday_volume.py twse-evidence --codes 1101 1301 2317 2330 2881 --download
+python scripts/compare_twse_stockday_volume.py twse-evidence --codes 1101 1301 2317 2330 2881
+```
+
+下載模式逐次間隔至少 2.5 秒，保存原始回應與來源清單。重播會核對 SHA-256、URL、月份、代號、交易日期及成交股數欄位；已存在的證據不會重新下載。若日後官方修訂回應，另存新證據並檢查差異；下列雜湊對應本次留存的版本。
+
+| 原始檔 | 官方來源 | SHA-256 |
+| --- | --- | --- |
+| stockday-1101-2026-08.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260801&stockNo=1101&response=json) | `6a940ded44b56b9728157834b6ba98f487df8960040623c9bcf713fd1b0aad8b` |
+| stockday-1101-2026-09.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260901&stockNo=1101&response=json) | `940808b14a658103aacd5a7b430c65406fcad646e25e420a688984bdb8eb2ab0` |
+| stockday-1101-2026-10.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261001&stockNo=1101&response=json) | `84cce8cb0059a2207c6ffb39ae837b85663eda8f634ac503ff2f23d2f6eeb097` |
+| stockday-1101-2026-11.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261101&stockNo=1101&response=json) | `848f43e0b27ebac574871ebb6d0581585d25a12d8675524dc66351b6d2e8c200` |
+| stockday-1301-2026-08.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260801&stockNo=1301&response=json) | `e70a52b0b1abffa5cad248aaaef0159ab133435abc4c027334a3dafbb3d9be4b` |
+| stockday-1301-2026-09.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260901&stockNo=1301&response=json) | `f44f1678dfd7c40e119aa88ce2ca16086f686b553fdd045129768ba8a9eaa464` |
+| stockday-1301-2026-10.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261001&stockNo=1301&response=json) | `63e175de069aa7d71fd24240ce3a93c81e8cf84c59c1f5dba2304b960e3441b7` |
+| stockday-1301-2026-11.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261101&stockNo=1301&response=json) | `18500bba3cdb7e60d7af29ee6048d325cbe97219d38c68b5536f1633432a261d` |
+| stockday-2317-2026-08.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260801&stockNo=2317&response=json) | `8b50281bedd07ae6628e9f7b504bb048ecff915712eae6845f529b286a070682` |
+| stockday-2317-2026-09.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260901&stockNo=2317&response=json) | `ac4ef2ac4395462d02cabac81c5ca7c23b1902c732e5873dd3eeb4d5708d2800` |
+| stockday-2317-2026-10.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261001&stockNo=2317&response=json) | `64ec7a495aac3de46234237aa5321c3bae34010f07cea4e98894744813dd86a8` |
+| stockday-2317-2026-11.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261101&stockNo=2317&response=json) | `5ad13f7d04748891b4c2673aa84bad75d1e7bd71fe75299b82d6ecfe42c6cf44` |
+| stockday-2330-2026-08.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260801&stockNo=2330&response=json) | `017e038130832238b1241583681f2beec016a7241bc77d1a62fadcc4aa9f0f38` |
+| stockday-2330-2026-09.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260901&stockNo=2330&response=json) | `c556fb917676d81615b5c8e133c5f36dae52fba2efcfc8b9ab196c86ef1506ec` |
+| stockday-2330-2026-10.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261001&stockNo=2330&response=json) | `9ea034f6a419f13e8dcfe5c99edfce8137bcdb52d5f3a5d0002fee8a1ddc960a` |
+| stockday-2330-2026-11.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261101&stockNo=2330&response=json) | `9442564d6fc5f850c0d0e0834cf0d4afbdad9c3d34a48b8aa6e3d3ef91d386ee` |
+| stockday-2881-2026-08.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260801&stockNo=2881&response=json) | `65e3d3b3553dd0e52d5cca823ab3a466f2ce5bc4f0836fce0df5f16714e4b326` |
+| stockday-2881-2026-09.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20260901&stockNo=2881&response=json) | `9649296374fdfe69f107b382f7356a4e434420ff7cd56b7b7f7c599ad32cd6f3` |
+| stockday-2881-2026-10.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261001&stockNo=2881&response=json) | `75082fdedb9396cc9532e3287c9d46a453e655d808f6f1eebcfce20d6940a66d` |
+| stockday-2881-2026-11.json | [TWSE](https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20261101&stockNo=2881&response=json) | `ef30bb2703f19d1376d859903001cf0e6153bf4259996e170f812f9704d6fdc7` |
