@@ -9,7 +9,6 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import backfill_research_history as batch
 from backfill_market_pilot import MINIMUM_ROSTER
-from technical_readiness import load_archives
 
 
 def twse(day):
@@ -91,7 +90,6 @@ class ResearchHistoryBatchTests(unittest.TestCase):
         self.assertFalse(report["publishable"])
         self.assertFalse(report["volumeScopesCompatibleForDirectMerge"])
         self.assertEqual((self.daily / "2026-11-11.json.gz").read_bytes(), self.original)
-        self.assertEqual(load_archives(self.research), []) if False else None
         self.assertTrue((self.research / "2026-11-10.json.gz").is_file())
         self.assertEqual(json.loads(__import__("gzip").decompress(
             (self.research / "2026-11-10.json.gz").read_bytes()))["status"],
