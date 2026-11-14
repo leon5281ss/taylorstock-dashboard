@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 
 from backfill_market_pilot import PilotError, combine, url_for
-from collect_market_history import compressed_snapshot, roc_to_iso
+from collect_market_history import IngestionError, compressed_snapshot, roc_to_iso
 from market_pipeline.quant_screen import official_universe
 from quant_run import fetch_csv, fetch_json, fetch_text
 
@@ -34,7 +34,7 @@ def scheduled_market_closures(payload, year):
             raise BackfillError("official_holiday_row_invalid")
         try:
             day = date.fromisoformat(roc_to_iso(item["Date"]))
-        except (ValueError, KeyError, TypeError) as exc:
+        except (IngestionError, ValueError, KeyError, TypeError) as exc:
             raise BackfillError("official_holiday_date_invalid") from exc
         if day.year != year:
             continue
