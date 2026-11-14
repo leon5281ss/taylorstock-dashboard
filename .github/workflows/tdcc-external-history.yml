@@ -1,0 +1,59 @@
+name: External TDCC Weekly Archive Research (Unverified History)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_tdcc_external_history.py"
+      - "tests/test_tdcc_external_history.py"
+      - ".github/workflows/tdcc-external-history.yml"
+  schedule:
+    # Asia/Taipei 09:40 on Sunday: independent research only.
+    - cron: "40 1 * * 0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-external-tdcc-research
+  cancel-in-progress: false
+
+jobs:
+  archived-research:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regression tests for public-data provenance and nontrading gates
+        run: python -m unittest discover -s tests -v
+      - name: Crosscheck latest official week and retrieve bounded independent historical archive
+        run: >-
+          python scripts/backfill_tdcc_external_history.py
+          --official-dir data/tdcc_weekly_research
+          --research-dir data/tdcc_external_history_research
+          --output tdcc-external-output
+          --max-successes 4
+          --max-attempts 6
+      - name: Upload provenance-aware, research-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdcc-unverified-external-history-diagnostics
+          path: tdcc-external-output/tdcc-external-history-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit only segregated third-party TDCC historical research
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/tdcc_external_history_research
+          "data(quant): store unverified-provenance external TDCC weekly research"
