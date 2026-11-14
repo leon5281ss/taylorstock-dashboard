@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import audit_history_sources
 from audit_history_sources import AuditError, audit_day, compare_market, run
 from backfill_market_pilot import MINIMUM_ROSTER
 
@@ -45,9 +46,12 @@ class CrossSourceAuditTests(unittest.TestCase):
     def setUpClass(cls):
         cls.patch_min = patch.dict(MINIMUM_ROSTER, {"TWSE": 1, "TPEX": 1})
         cls.patch_min.start()
+        cls.patch_overlap = patch.dict(audit_history_sources.MIN_SHARED, {"TWSE": 1, "TPEX": 1})
+        cls.patch_overlap.start()
 
     @classmethod
     def tearDownClass(cls):
+        cls.patch_overlap.stop()
         cls.patch_min.stop()
 
     def get_day(self, t=None, p=None):
