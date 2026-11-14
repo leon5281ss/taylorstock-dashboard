@@ -63,7 +63,7 @@ class HistoricalPilotTests(unittest.TestCase):
         self.assertEqual(result["volumeScopes"]["TPEX"], "tpex_round_lot_shares")
         self.assertEqual(result["sourceDateEvidence"]["TWSE"], "explicit_response_date")
         self.assertEqual({x["code"] for x in result["stocks"]}, {"2330", "6488"})
-        self.assertEqual(result["stocks"][1]["volume"], 30000)
+        self.assertEqual(next(x for x in result["stocks"] if x["market"] == "TPEX")["volume"], 30000)
 
     def test_no_date_field_is_not_lied_about(self):
         x = tpex()
