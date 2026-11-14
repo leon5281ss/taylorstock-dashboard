@@ -1,0 +1,68 @@
+name: Automatic Research History Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_research_history.py"
+      - "tests/test_research_history_batch.py"
+      - ".github/workflows/research-history-backfill.yml"
+  schedule:
+    # 03:35, 09:35, 15:35 and 21:35 Asia/Taipei.
+    # Each run is capped at 20 verified days and 30 attempted weekdays.
+    - cron: "35 1,7,13,19 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-research-history-backfill
+  cancel-in-progress: false
+
+jobs:
+  research-archive:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test all public-data and privacy invariants
+        run: python -m unittest discover -s tests -v
+      - name: Incrementally fetch at most 20 dated official research snapshots
+        run: >-
+          python scripts/backfill_research_history.py
+          --daily-dir data/market_daily
+          --research-dir data/market_backfill_pilot
+          --output research-backfill-output
+          --lookback-days 220
+          --max-successes 20
+          --max-attempts 30
+      - name: Upload archive diagnostics even if source rejects a date
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-history-backfill-status
+          path: research-backfill-output/research-backfill-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit ONLY validated public historical research archives
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- data/market_backfill_pilot
+          if git diff --cached --quiet; then
+            echo "No new research dates to archive."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(quant): incrementally accumulate validated research history"
+          git push origin HEAD:main
