@@ -1,0 +1,44 @@
+name: Official Dated Margin Balance Source Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/probe_margin_history.py"
+      - "tests/test_margin_history_source.py"
+      - ".github/workflows/margin-source-probe.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taylorstock-dated-margin-source-probe
+  cancel-in-progress: false
+
+jobs:
+  research-probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline market source and data privacy tests
+        run: python -m unittest discover -s tests -v
+      - name: Check two dated official TWSE/TPEx margin responses without converting units
+        run: >-
+          python scripts/probe_margin_history.py
+          --first-day 2026-11-12
+          --second-day 2026-11-13
+          --output margin-source-output
+      - name: Upload bounded source schema and historical-date diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: margin-dated-source-probe
+          path: margin-source-output/margin-source-probe.json
+          retention-days: 30
+          if-no-files-found: warn
