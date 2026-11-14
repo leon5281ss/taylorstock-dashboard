@@ -1,0 +1,40 @@
+name: Official Historical Source Consistency Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_history_sources.py"
+      - "tests/test_history_source_audit.py"
+      - ".github/workflows/history-source-audit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-history-source-audit
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate all Python unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Compare overlapping live and dated historical data sources
+        run: python scripts/audit_history_sources.py --archive-dir data/market_daily --output source-audit-output --days 2
+      - name: Upload public-data-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-source-history-audit
+          path: source-audit-output/cross-source-audit.json
+          retention-days: 30
+          if-no-files-found: warn
