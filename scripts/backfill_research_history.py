@@ -8,6 +8,7 @@ import argparse
 from datetime import date, timedelta
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 import time
 
 from backfill_market_pilot import PilotError, combine, url_for
@@ -73,6 +74,56 @@ def saved_official_closures(path, year):
         raise BackfillError("saved_official_calendar_unavailable") from exc
 
 
+def verified_extraordinary_closures(path, year):
+    """Only independently evidenced FULL-MARKET temporary closures may be excluded.
+
+    A newspaper headline alone or a company trading halt is insufficient.
+    Each event must name both TWSE and TPEx and cite two different trusted
+    publishers, with announcements no later than the closure date.
+    """
+    if path is None:
+        return set()
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        events = raw["events"]
+        if (raw.get("schemaVersion") != 1 or raw.get("year") != year
+                or raw.get("type") != "verified_unplanned_full_day_market_closures"
+                or set(raw.get("marketScope", [])) != {"TWSE", "TPEX"}
+                or not isinstance(events, list) or not 1 <= len(events) <= 12):
+            raise BackfillError("extraordinary_calendar_schema_invalid")
+        valid_domains = {"cna.com.tw", "yuanta.com.tw", "udn.com"}
+        approved = set()
+        for event in events:
+            closure = date.fromisoformat(event["date"])
+            announced = date.fromisoformat(event["announcedOn"])
+            if (closure.year != year or closure.weekday() >= 5 or
+                    event["date"] != closure.isoformat() or announced > closure or
+                    not str(event.get("reason", "")).startswith("typhoon_")):
+                raise BackfillError("extraordinary_date_or_reason_invalid")
+            evidence = event["evidence"]
+            if not isinstance(evidence, list) or len(evidence) < 2:
+                raise BackfillError("insufficient_extraordinary_evidence")
+            publishers = set()
+            for item in evidence:
+                url = urlsplit(str(item["url"]))
+                host = url.hostname or ""
+                if url.scheme != "https" or not url.path or not item.get("publisher"):
+                    raise BackfillError("extraordinary_evidence_invalid")
+                matches = [domain for domain in valid_domains
+                           if host == domain or host.endswith("." + domain)]
+                if len(matches) != 1:
+                    raise BackfillError("extraordinary_unverified_publisher")
+                publishers.add(matches[0])
+            if len(publishers) < 2:
+                raise BackfillError("nonindependent_extraordinary_evidence")
+            if event["date"] in approved:
+                raise BackfillError("duplicate_extraordinary_date")
+            approved.add(event["date"])
+        return approved
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise BackfillError("extraordinary_calendar_unavailable_or_invalid") from exc
+
+
 def archive_plan(daily_dir, research_dir, *, lookback_days=220,
                  max_successes=20, max_attempts=30, official_closed_dates=()):
     """Newest first, explicit cap, never rewrite verified daily or pilot snapshots."""
@@ -103,7 +154,7 @@ def archive_plan(daily_dir, research_dir, *, lookback_days=220,
 def run_batch(daily_dir, research_dir, *,
               fetch=fetch_text, roster_fetch_json=fetch_json,
               roster_fetch_csv=fetch_csv, holiday_fetch=None,
-              saved_calendar_path=None,
+              saved_calendar_path=None, extraordinary_calendar_path=None,
               sleep=time.sleep, delay=2.5,
               lookback_days=220, max_successes=20, max_attempts=30):
     if delay < 2.5:
@@ -134,10 +185,18 @@ def run_batch(daily_dir, research_dir, *,
                 calendar_status = "saved_official_reference_year_verified"
             except BackfillError:
                 pass
+    extraordinary = verified_extraordinary_closures(
+        extraordinary_calendar_path, year=int(plan["firstDaily"][:4]))
+    if extraordinary:
+        combined_closed = set(plan["officialScheduledClosuresSkipped"]) | extraordinary
+        plan = archive_plan(daily_dir, research_dir, lookback_days=lookback_days,
+                            max_successes=max_successes, max_attempts=max_attempts,
+                            official_closed_dates=combined_closed)
     if not plan["candidates"]:
         return {"status": "no_candidates", "new": [], "errors": [],
                 "existingResearchDays": plan["researchExisting"], "newCount": 0,
                 "holidayCalendarStatus": calendar_status,
+                "verifiedExtraordinaryClosures": sorted(extraordinary),
                 "officialScheduledClosuresSkipped": plan["officialScheduledClosuresSkipped"]}
     universe = official_universe(roster_fetch_json, roster_fetch_csv)
     if universe.get("errors"):
@@ -183,6 +242,7 @@ def run_batch(daily_dir, research_dir, *,
             "remainingWeekdayCandidatesAtStart": plan["candidateCount"],
             "holidayCalendarStatus": calendar_status,
             "holidayCalendarError": calendar_error,
+            "verifiedExtraordinaryClosures": sorted(extraordinary),
             "officialScheduledClosuresSkipped": plan["officialScheduledClosuresSkipped"],
             "historicalPointInTimeUniverseAvailable": False,
             "volumeScopesCompatibleForDirectMerge": False,
@@ -205,6 +265,7 @@ def main():
         report = run_batch(args.daily_dir, args.research_dir,
                            holiday_fetch=fetch_json,
                            saved_calendar_path=Path("config/official_twse_holidays_2026.json"),
+                           extraordinary_calendar_path=Path("config/verified_extraordinary_market_closures_2026.json"),
                            lookback_days=args.lookback_days,
                            max_successes=args.max_successes,
                            max_attempts=args.max_attempts)

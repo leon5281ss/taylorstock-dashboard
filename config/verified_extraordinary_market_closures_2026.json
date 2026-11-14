@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "year": 2026,
+  "type": "verified_unplanned_full_day_market_closures",
+  "marketScope": [
+    "TWSE",
+    "TPEX"
+  ],
+  "events": [
+    {
+      "date": "2026-07-10",
+      "announcedOn": "2026-07-09",
+      "reason": "typhoon_Bavi",
+      "evidence": [
+        {
+          "publisher": "Central News Agency",
+          "url": "https://www.cna.com.tw/news/afe/202607090360.aspx"
+        },
+        {
+          "publisher": "United Daily News",
+          "url": "https://udn.com/news/story/7251/9618846"
+        }
+      ]
+    },
+    {
+      "date": "2026-10-23",
+      "announcedOn": "2026-10-22",
+      "reason": "typhoon_announced_20261022",
+      "evidence": [
+        {
+          "publisher": "Central News Agency",
+          "url": "https://www.cna.com.tw/news/afe/202610220388.aspx"
+        },
+        {
+          "publisher": "Yuanta Securities",
+          "url": "https://www.yuanta.com.tw/eyuanta/Securities/News?CategoryId=S000000051&NewsId=4466bd59-f526-41b8-a91b-5f578243b24f"
+        }
+      ]
+    }
+  ]
+}

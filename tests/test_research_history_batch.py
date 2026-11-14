@@ -196,5 +196,55 @@ class ResearchHistoryBatchTests(unittest.TestCase):
         with self.assertRaises(batch.BackfillError):
             batch.saved_official_closures(source, 2025)
 
+    def test_evidenced_typhoon_closures_are_not_bad_quote_days(self):
+        source = (Path(__file__).resolve().parents[1] /
+                  "config/verified_extraordinary_market_closures_2026.json")
+        closed = batch.verified_extraordinary_closures(source, 2026)
+        self.assertEqual(closed, {"2026-07-10", "2026-10-23"})
+        plan = batch.archive_plan(self.daily, self.research,
+                                  official_closed_dates=closed)
+        self.assertNotIn("2026-10-23", plan["candidates"])
+        self.assertNotIn("2026-07-10", plan["candidates"])
+        self.assertIn("2026-10-22", plan["candidates"])
+
+    def test_typhoon_provenance_rejects_missing_independent_sources(self):
+        import json
+        src = (Path(__file__).resolve().parents[1] /
+               "config/verified_extraordinary_market_closures_2026.json")
+        data = json.loads(src.read_text(encoding="utf-8"))
+        data["events"][0]["evidence"] = [
+            {"publisher": "Unverified", "url": "https://evil.example/rumor"}]
+        path = self.root / "fake-extraordinary.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(batch.BackfillError):
+            batch.verified_extraordinary_closures(path, 2026)
+
+    def test_typhoon_provenance_rejects_wrong_year_and_different_market(self):
+        import json
+        src = (Path(__file__).resolve().parents[1] /
+               "config/verified_extraordinary_market_closures_2026.json")
+        data = json.loads(src.read_text(encoding="utf-8"))
+        data["marketScope"] = ["TWSE"]
+        path = self.root / "wrong-market.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(batch.BackfillError):
+            batch.verified_extraordinary_closures(path, 2026)
+        with self.assertRaises(batch.BackfillError):
+            batch.verified_extraordinary_closures(src, 2025)
+
+    def test_run_batch_exposes_verified_temporary_market_closures(self):
+        source = (Path(__file__).resolve().parents[1] /
+                  "config/verified_extraordinary_market_closures_2026.json")
+        with patch.object(batch, "official_universe", return_value=universe()):
+            result = batch.run_batch(self.daily, self.research,
+                                     extraordinary_calendar_path=source,
+                                     fetch=lambda _: "{}",
+                                     sleep=lambda _: None,
+                                     max_successes=1, max_attempts=1)
+        self.assertEqual(result["verifiedExtraordinaryClosures"],
+                         ["2026-07-10", "2026-10-23"])
+        self.assertEqual(result["newCount"], 0)
+        self.assertEqual(result["unverifiedDays"], 1)
+
 if __name__ == "__main__":
     unittest.main()
