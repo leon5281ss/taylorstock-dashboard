@@ -1,0 +1,62 @@
+name: Official Institutional History Pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      trading_date:
+        description: "Official TWSE and TPEx data date YYYY-MM-DD"
+        required: true
+        default: "2026-11-13"
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "scripts/collect_institutional_history.py"
+      - "tests/test_institutional_history.py"
+      - ".github/workflows/institutional-history-pilot.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taylorstock-institutional-history-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check public-data integrity and all offline regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Download official dated institutional flows and enforce group accounting
+        env:
+          INSTITUTIONAL_DAY: ${{ inputs.trading_date || '2026-11-13' }}
+        run: >-
+          python scripts/collect_institutional_history.py
+          --day "$INSTITUTIONAL_DAY"
+          --output institutional-output
+          --research-dir data/institutional_research
+      - name: Upload sanitized institutional history diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: institutional-history-pilot-status
+          path: institutional-output/institutional-history-status.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Commit ONLY validated public institutional net research
+        if: always()
+        shell: bash
+        run: >-
+          bash scripts/safe_commit_public_data.sh
+          data/institutional_research
+          "data(quant): archive verified historical institutional net flows"
