@@ -1,6 +1,12 @@
 name: Official History Backfill Pilot
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill_market_pilot.py"
+      - "tests/test_backfill_market_pilot.py"
+      - ".github/workflows/backfill-pilot.yml"
   workflow_dispatch:
     inputs:
       start_date:
@@ -37,8 +43,8 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Fetch at most five historical weekdays from dated official sources
         env:
-          BACKFILL_START: ${{ inputs.start_date }}
-          BACKFILL_END: ${{ inputs.end_date }}
+          BACKFILL_START: ${{ inputs.start_date || '2026-11-04' }}
+          BACKFILL_END: ${{ inputs.end_date || '2026-11-10' }}
         run: >-
           python scripts/backfill_market_pilot.py
           --start-date "$BACKFILL_START"
