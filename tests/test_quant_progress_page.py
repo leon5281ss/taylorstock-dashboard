@@ -8,10 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class QuantProgressPageTests(unittest.TestCase):
-    def test_progress_page_loads_two_explicit_public_research_directories(self):
+    def test_progress_page_loads_three_explicit_public_research_directories(self):
         page = (ROOT / "docs/quant-progress.html").read_text(encoding="utf-8")
         self.assertIn('dates("market_daily")', page)
         self.assertIn('dates("market_backfill_pilot")', page)
+        self.assertIn('dates("institutional_research")', page)
+        self.assertIn('id="institutional"', page)
+        self.assertIn('id="institutionalCoverage"', page)
         self.assertIn("121", page)
         self.assertIn("top 10", page.lower())
         self.assertIn("未還原", page)
@@ -34,6 +37,8 @@ class QuantProgressPageTests(unittest.TestCase):
     def test_progress_calculation_deduplicates_dates_and_handles_api_failure(self):
         page = (ROOT / "docs/quant-progress.html").read_text(encoding="utf-8")
         self.assertIn("new Set([...live, ...historical])", page)
+        self.assertIn("institutional.filter(day => observedSet.has(day))", page)
+        self.assertIn("僅代表日期重疊", page)
         self.assertIn("if (!response.ok)", page)
         self.assertIn("catch (err)", page)
         self.assertIn("不是正式交易日數驗證", page)
