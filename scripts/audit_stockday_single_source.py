@@ -1,5 +1,6 @@
 """Audit whether existing STOCK_DAY captures form a consistent research window."""
 import argparse
+from datetime import date
 import json
 from pathlib import Path
 
@@ -10,6 +11,11 @@ from compare_twse_stockday_volume import monthly_url, parse_month
 
 
 def check(code, sessions, folder, manifest):
+    if not sessions or sessions != sorted(set(sessions)) or any(
+        date.fromisoformat(day).isoformat() != day or date.fromisoformat(day).weekday() >= 5
+        for day in sessions
+    ):
+        raise ValueError("invalid_trading_sessions")
     months = sorted({day[:7] for day in sessions})
     observed, captures, issues, signatures = {}, [], [], set()
     for month in months:
@@ -17,7 +23,9 @@ def check(code, sessions, folder, manifest):
         url = monthly_url(code, month)
         try:
             entry = manifest.get(name)
-            if not isinstance(entry, dict) or entry.get("source") != url:
+            if not isinstance(entry, dict):
+                raise ValueError("stockday_manifest_entry_missing")
+            if entry.get("source") != url:
                 raise ValueError("stockday_manifest_source_mismatch")
             path = folder / name
             payload = read_evidence(path, entry.get("sha256"))
@@ -28,10 +36,24 @@ def check(code, sessions, folder, manifest):
                              "responseDate": payload["date"], "fields": fields,
                              "sourceVersion": None, "tradeScope": None})
         except (OSError, ValueError, TypeError, KeyError, IngestionError) as exc:
-            issues.append({"month": month, "reason": str(exc)})
+            if isinstance(exc, FileNotFoundError) or str(exc) == "stockday_manifest_entry_missing":
+                category = "raw_source_missing"
+            elif str(exc) in ("stockday_manifest_source_mismatch", "comparison_report_sha256_mismatch"):
+                category = "raw_source_or_sha256_mismatch"
+            else:
+                category = "raw_source_invalid"
+            issues.append({"month": month, "category": category, "reason": str(exc)})
     missing = [day for day in sessions if observed.get(day) is None]
     schema_consistent = len(captures) == len(months) and len(signatures) == 1
-    return {"code": code, "numericWindowComplete": not missing,
+    blockers = sorted({issue["category"] for issue in issues})
+    numeric_complete = len(sessions) == 60 and not missing
+    if not numeric_complete:
+        blockers.append("numeric_window_incomplete")
+    if len(signatures) > 1:
+        blockers.append("cross_month_schema_mismatch")
+    blockers.append("historical_scope_unverified")
+    return {"code": code, "numericWindowComplete": numeric_complete,
+            "blockers": blockers,
             "crossMonthSchemaConsistent": schema_consistent, "captures": captures,
             "missingOrInvalidDates": missing, "captureErrors": issues,
             "window": [{"date": day, "shares": observed.get(day)} for day in sessions],
