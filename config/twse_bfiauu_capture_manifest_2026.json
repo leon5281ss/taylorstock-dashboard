@@ -1,0 +1,23 @@
+{
+  "2026-11-11": {
+    "requestedDate": "2026-11-11",
+    "responseDate": "2026-11-11",
+    "source": "https://www.twse.com.tw/rwd/zh/block/BFIAUU?date=20261111&response=json",
+    "rawFile": "twse-block-official-20261111.json",
+    "sha256": "c73f5d0d3318322c6a45371983fcaf5ebac4c95344e2def50cdde4aa316668a8"
+  },
+  "2026-11-12": {
+    "requestedDate": "2026-11-12",
+    "responseDate": "2026-11-12",
+    "source": "https://www.twse.com.tw/rwd/zh/block/BFIAUU?date=20261112&response=json",
+    "rawFile": "twse-block-official-20261112.json",
+    "sha256": "30419e300bc540727036054ae5ce39ddca05d778e1d8eaa64a30b43cd24afaa9"
+  },
+  "2026-11-13": {
+    "requestedDate": "2026-11-13",
+    "responseDate": "2026-11-13",
+    "source": "https://www.twse.com.tw/rwd/zh/block/BFIAUU?date=20261113&response=json",
+    "rawFile": "twse-block-official-20261113.json",
+    "sha256": "f85c6bf6c767abb5d8e514da12a44871be65393a15afb23108104cbc5e50462e"
+  }
+}
