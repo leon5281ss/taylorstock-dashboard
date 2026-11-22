@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from market_pipeline.alerts import evaluate
 from market_pipeline.news import AnnouncementParser, collect_news
-from market_pipeline.pipeline import ROOT, TAIPEI, assert_public, calendar_context, collect, load_watchlist, write_outputs
+from market_pipeline.pipeline import ROOT, TAIPEI, assert_public, calendar_context, collect, collect_stock, load_watchlist, write_outputs
 from market_pipeline.private_pnl import liquidation_pnl
 from market_pipeline.sources import DATASETS, FINMIND, HOLIDAYS, HttpClient, SourceError, compare_official, government_bank, iso_date, normalize_finmind, official_record, official_snapshots
 
@@ -190,6 +190,60 @@ class PipelineTests(unittest.TestCase):
         context = calendar_context(client, datetime(2026, 11, 11, 21, tzinfo=TAIPEI), "2026-01-01")
         self.assertEqual(context["targetDate"], "2026-11-10")
         self.assertEqual(context["status"], "non_trading_day")
+
+    def test_verified_typhoon_dates_are_removed_market_wide(self):
+        client = FixtureClient()
+        client.dataset = lambda *args: [{"date": day} for day in
+            ("2026-07-09", "2026-07-10", "2026-07-13",
+             "2026-10-22", "2026-10-23", "2026-10-27")]
+        for when, previous in ((datetime(2026, 7, 10, 20, tzinfo=TAIPEI), "2026-07-09"),
+                               (datetime(2026, 10, 23, 20, tzinfo=TAIPEI), "2026-10-22")):
+            context = calendar_context(client, when, "2026-07-01")
+            self.assertEqual(context["status"], "non_trading_day")
+            self.assertEqual(context["targetDate"], previous)
+            self.assertNotIn(when.date().isoformat(), context["dates"])
+            self.assertFalse(context["issues"])
+        after = calendar_context(client, datetime(2026, 10, 27, 20, tzinfo=TAIPEI), "2026-07-01")
+        self.assertEqual(after["dates"], ["2026-07-09", "2026-07-13", "2026-10-22", "2026-10-27"])
+
+    def test_split_suspension_is_symbol_only_without_filling_or_crossing_split(self):
+        client = FixtureClient()
+        days = ["2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06",
+                "2026-07-07", "2026-07-08", "2026-07-09"]
+        real = (days[0], days[-3], days[-1])
+        base_dataset = client.dataset
+
+        def dataset(kind, start, target, code=None):
+            rows = base_dataset(kind, start, target, code)
+            return [{**row, "date": day, **(
+                        {"close": 240, "open": 240, "max": 240, "min": 240}
+                        if kind == DATASETS["price"] and day == days[0] else
+                        {"MarginPurchaseTodayBalance": 10, "MarginPurchaseYesterdayBalance": 100}
+                        if kind == DATASETS["margin"] else {})}
+                    for day in real if day <= target for row in rows]
+
+        client.dataset = dataset
+        items = {row["code"]: row for row in load_watchlist(ROOT / "config/watchlist_public.json")}
+
+        def run(code, target):
+            return collect_stock(client, items[code], target, days[0], days,
+                                 official_snapshots(client, target), True)
+
+        resume = run("00685L", "2026-07-07")
+        self.assertTrue(all(q["status"] == "ok" for q in resume["quality"].values()))
+        self.assertNotIn("deleveraging_drop", {a["rule"] for a in resume["alerts"]})
+        self.assertIsNone(resume["technical"]["ma20"])
+        self.assertIsNone(resume["technical"]["ma60"])
+        self.assertEqual([row["date"] for row in resume["history"]["price"]], list(real[:2]))
+        suspended = run("00685L", "2026-07-06")
+        self.assertTrue(all(q["status"] == "suspended" for q in suspended["quality"].values()))
+        self.assertEqual(suspended["alerts"], [])
+        etf = run("00685L", days[-1])
+        other = run("2303", days[-1])
+        for kind in DATASETS:
+            self.assertEqual(etf["quality"][kind]["status"], "history_gaps")
+            self.assertEqual(etf["quality"][kind]["missingDates"], ["2026-07-08"])
+            self.assertEqual(other["quality"][kind]["missingDates"], days[1:5] + ["2026-07-08"])
 
     def test_bank_permission_placeholder_does_not_query(self):
         class Forbidden:

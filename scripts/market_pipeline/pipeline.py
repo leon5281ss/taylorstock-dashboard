@@ -41,6 +41,28 @@ def assert_public(payload, token=""):
         raise ValueError("secret_rejected")
 
 
+def load_market_closures(start, today):
+    config = ROOT / "config"
+    overrides = json.loads((config / "market_closures.json").read_text(encoding="utf-8"))
+    for year in range(date.fromisoformat(start).year, date.fromisoformat(today).year + 1):
+        path = config / f"verified_extraordinary_market_closures_{year}.json"
+        if not path.exists():
+            continue
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if (record.get("schemaVersion") != 1 or record.get("year") != year
+                or record.get("type") != "verified_unplanned_full_day_market_closures"
+                or set(record.get("marketScope", [])) != {"TWSE", "TPEX"}):
+            raise ValueError("invalid_extraordinary_market_closure_config")
+        for event in record["events"]:
+            day = date.fromisoformat(event["date"])
+            announced = date.fromisoformat(event["announcedOn"])
+            if day.year != year or day.weekday() >= 5 or announced > day:
+                raise ValueError("invalid_extraordinary_market_closure_date")
+            overrides.append({"date": day.isoformat(), "source": event["officialSource"],
+                              "reason": event["reason"]})
+    return overrides
+
+
 def calendar_context(client, now, start, closure_overrides=None):
     now = taipei_time(now)
     today = now.date().isoformat()
@@ -75,7 +97,7 @@ def calendar_context(client, now, start, closure_overrides=None):
         issues.append("official_calendar_unavailable")
     override_sources = []
     if closure_overrides is None:
-        closure_overrides = json.loads((ROOT / "config/market_closures.json").read_text(encoding="utf-8"))
+        closure_overrides = load_market_closures(start, today)
     for entry in closure_overrides:
         source = urlparse(entry["source"])
         if source.scheme != "https" or source.hostname not in ("www.twse.com.tw", "www.tpex.org.tw") or not entry.get("reason"):
@@ -100,7 +122,36 @@ def calendar_context(client, now, start, closure_overrides=None):
     return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "timezone": "Asia/Taipei", "evaluatedAt": now.isoformat(), "publicationCutoff": "15:30", "eligibleThrough": eligible_end, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS, *override_sources]}
 
 
-def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
+def load_split_suspensions(path):
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(entries, list):
+        raise ValueError("invalid_split_suspension_config")
+    by_symbol = {}
+    for entry in entries:
+        source = urlparse(entry["source"])
+        first, last, resumes = (date.fromisoformat(entry[key]) for key in ("start", "end", "resumes"))
+        if (source.scheme != "https" or source.hostname not in ("www.twse.com.tw", "www.tpex.org.tw")
+                or first > last or last >= resumes
+                or entry["market"] not in ("TWSE", "TPEX") or not entry["code"]):
+            raise ValueError("invalid_split_suspension_evidence")
+        by_symbol.setdefault((entry["market"], entry["code"]), []).append(
+            (first.isoformat(), last.isoformat(), resumes.isoformat()))
+    return by_symbol
+
+
+def collect_stock(client, item, target, start, days, snapshots, calendar_ok, split_suspensions=None):
+    if split_suspensions is None:
+        split_suspensions = load_split_suspensions(ROOT / "config/symbol_split_suspensions.json")
+    windows = split_suspensions.get((item["market"], item["code"]), ())
+    def suspended(day):
+        return any(first <= day <= last for first, last, _ in windows)
+
+    symbol_days = [day for day in days if not suspended(day)]
+    target_suspended = suspended(target)
+    # Do not compare unadjusted prices or volumes, or continue streaks, across
+    # a split. Retain observed rows, but restart indicator windows at resumption.
+    last_resumption = max((resumes for _, _, resumes in windows if resumes <= target), default="")
+    rule_days = [day for day in symbol_days if day >= last_resumption]
     histories, qualities, latest = {}, {}, {}
     for kind, dataset in DATASETS.items():
         diagnostic = None
@@ -121,16 +172,20 @@ def collect_stock(client, item, target, start, days, snapshots, calendar_ok):
         if comparison["status"] == "mismatch":
             state = "mismatch"
         available_dates = {row["date"] for row in rows}
-        missing_dates = [day for day in days if rows and rows[0]["date"] <= day <= target and day not in available_dates]
+        missing_dates = [day for day in symbol_days if rows and rows[0]["date"] <= day <= target and day not in available_dates]
         if missing_dates and state == "ok":
             state = "history_gaps"
+        if target_suspended:
+            state = "suspended"
         qualities[kind] = {"status": state, "date": rows[-1]["date"] if rows else None, "source": dataset, "endpoint": FINMIND, "issues": issues, "missingDates": missing_dates, "officialCheck": comparison}
         if diagnostic:
             qualities[kind]["diagnostic"] = diagnostic
     blocked = [kind for kind, quality in qualities.items() if quality["status"] in ("mismatch", "invalid_or_incomplete")]
-    if not calendar_ok:
+    if not calendar_ok or target_suspended:
         blocked = list(DATASETS)
-    alerts, indicators, unavailable = evaluate(histories["price"], histories["institutional"], histories["margin"], days, target, blocked)
+    if target == last_resumption:
+        blocked.append("margin")  # Previous-session balances may span the split.
+    alerts, indicators, unavailable = evaluate(histories["price"], histories["institutional"], histories["margin"], rule_days, target, blocked)
     is_etf = item["code"] in ("00685L", "00981A")
     current_price = latest["price"]
     complete = all(quality["status"] == "ok" for quality in qualities.values())
@@ -165,7 +220,10 @@ def collect(client, watchlist, now, industry_items=None):
     if target is None:
         raise SourceError("calendar_target_unavailable")
     snapshots = official_snapshots(client, target)
-    stocks = [collect_stock(client, item, target, start, calendar["dates"], snapshots, not calendar["issues"] and target in calendar["dates"]) for item in watchlist]
+    split_suspensions = load_split_suspensions(ROOT / "config/symbol_split_suspensions.json")
+    stocks = [collect_stock(client, item, target, start, calendar["dates"], snapshots,
+                            not calendar["issues"] and target in calendar["dates"], split_suspensions)
+              for item in watchlist]
     news = collect_news(client, now)
     for stock in stocks:
         stock["alerts"].extend(related_industry_news(stock, industry_items or []))

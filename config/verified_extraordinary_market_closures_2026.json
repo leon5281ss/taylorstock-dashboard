@@ -20,7 +20,8 @@
           "publisher": "United Daily News",
           "url": "https://udn.com/news/story/7251/9618846"
         }
-      ]
+      ],
+      "officialSource": "https://www.twse.com.tw/staticFiles/news/news/tsecnews/8a8216d69ef76943019f46cb86ae0110.pdf"
     },
     {
       "date": "2026-10-23",
@@ -35,7 +36,8 @@
           "publisher": "Yuanta Securities",
           "url": "https://www.yuanta.com.tw/eyuanta/Securities/News?CategoryId=S000000051&NewsId=4466bd59-f526-41b8-a91b-5f578243b24f"
         }
-      ]
+      ],
+      "officialSource": "https://www.twse.com.tw/staticFiles/news/news/tsecnews/8a8216d6a0fa351b01a1638507940202.pdf"
     }
   ]
 }
