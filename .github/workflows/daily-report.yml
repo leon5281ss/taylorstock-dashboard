@@ -2,8 +2,24 @@ name: Daily Stock Report
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_date:
+        description: "Optional expected trading date (YYYY-MM-DD); does not backdate collection"
+        type: string
+        default: ""
+      publish_pages:
+        description: "Publish the validated report to GitHub Pages"
+        type: boolean
+        default: false
+      send_telegram:
+        description: "Allow the normal opted-in Telegram notification"
+        type: boolean
+        default: false
   schedule:
-    - cron: "0,20,40 13 * * 1-5"
+    # 21:07, 21:27, 21:47 Asia/Taipei; avoid the top of the hour.
+    - cron: "7 13 * * 1-5"
+    - cron: "27 13 * * 1-5"
+    - cron: "47 13 * * 1-5"
 
 permissions:
   contents: read
@@ -57,6 +73,30 @@ jobs:
             docs/data/stocks.json
           if-no-files-found: error
           retention-days: 30
+      - name: Check optional expected trading date
+        if: github.event_name == 'workflow_dispatch' && inputs.expected_date != ''
+        env:
+          EXPECTED_REPORT_DATE: ${{ inputs.expected_date }}
+        run: |
+          python - <<'PYTHON'
+          import json
+          import os
+          from datetime import date
+          from pathlib import Path
+
+          expected = os.environ["EXPECTED_REPORT_DATE"]
+          try:
+              if date.fromisoformat(expected).isoformat() != expected:
+                  raise ValueError
+          except ValueError:
+              raise SystemExit("Expected trading date must use YYYY-MM-DD.")
+          report = json.loads(Path("docs/data/stocks.json").read_text(encoding="utf-8"))
+          actual = report["summary"]["asOf"]
+          target = report["calendar"]["targetDate"]
+          if actual != expected or target != expected:
+              raise SystemExit(f"Report date mismatch: expected {expected}; asOf={actual}; targetDate={target}.")
+          print(f"Expected trading date verified: {expected}.")
+          PYTHON
       - uses: actions/upload-artifact@v4
         with:
           name: public-site
@@ -64,7 +104,10 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   publish:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish_pages == true))
     needs: collect
     permissions:
       contents: read
@@ -75,7 +118,8 @@ jobs:
   notify:
     if: >-
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.send_telegram == true)) &&
       vars.TELEGRAM_NOTIFICATIONS_ENABLED == 'true'
     needs: collect
     runs-on: ubuntu-latest
