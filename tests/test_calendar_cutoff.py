@@ -9,12 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from market_pipeline.clock import TAIPEI
 from market_pipeline.pipeline import ROOT, calendar_context, collect, load_watchlist
 from market_pipeline.sources import DATASETS, HOLIDAYS, SourceError
-from test_pipeline import FixtureClient
+from test_pipeline import FixtureClient, annual_fixture_rows
 
 
 class CalendarClient(FixtureClient):
     days = ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"]
-    holidays = [{"Date": "1150101", "Name": "元旦", "Description": "放假"}]
+    holidays = annual_fixture_rows(2026)
 
     def dataset(self, dataset, start, end, code=None):
         if dataset == "TaiwanStockTradingDate":
@@ -53,7 +53,7 @@ class CalendarCutoffTests(unittest.TestCase):
 
     def test_holiday_and_temporary_closure_override(self):
         client = CalendarClient()
-        client.holidays = [{"Date": "1151112", "Name": "測試休市", "Description": "全日休市"}]
+        client.holidays = [*client.holidays, {"Date": "1151112", "Name": "測試休市", "Description": "全日休市"}]
         for hour in (0, 21):
             context = self.context(hour=hour, client=client)
             self.assertEqual(context["targetDate"], "2026-11-11")
