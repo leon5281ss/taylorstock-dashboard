@@ -31,6 +31,14 @@ def history(days):
     return [{"date": day, "close": 100, "volume": 1000} for day in days]
 
 
+def annual_fixture_rows(year):
+    pinned = json.loads((ROOT / "config" / f"official_twse_holidays_{year}.json").read_text())
+    return [{"Date": str(year - 1911) + day[5:].replace("-", ""),
+             "Name": "正常交易" if opened else "休市"}
+            for key, opened in (("closedDates", False), ("openDates", True))
+            for day in pinned[key]]
+
+
 class FixtureClient:
     token = "TEST_ONLY_NOT_A_REAL_TOKEN"
 
@@ -47,7 +55,7 @@ class FixtureClient:
 
     def get(self, url, params=None, **kwargs):
         if url == HOLIDAYS:
-            return [{"Date": "1150101", "Name": "元旦", "Description": "放假"}]
+            return annual_fixture_rows(2026)
         raise SourceError("network_error")
 
 
@@ -186,7 +194,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(calendar_context(client, datetime(2026, 11, 14, 21, tzinfo=TAIPEI), "2026-01-01")["status"], "non_trading_day")
         self.assertEqual(calendar_context(client, datetime(2026, 11, 11, 21, tzinfo=TAIPEI), "2026-01-01")["status"], "awaiting_confirmation")
         original = client.get
-        client.get = lambda url, **kwargs: [{"Date": "1151111", "Name": "休市", "Description": "放假"}] if url == HOLIDAYS else original(url, **kwargs)
+        client.get = lambda url, **kwargs: [*original(url, **kwargs),
+            {"Date": "1151111", "Name": "休市", "Description": "放假"}] if url == HOLIDAYS else original(url, **kwargs)
         context = calendar_context(client, datetime(2026, 11, 11, 21, tzinfo=TAIPEI), "2026-01-01")
         self.assertEqual(context["targetDate"], "2026-11-10")
         self.assertEqual(context["status"], "non_trading_day")
@@ -330,7 +339,8 @@ class PipelineTests(unittest.TestCase):
         tests = (ROOT / ".github/workflows/tests.yml").read_text()
         self.assertNotIn("secrets.", tests)
         daily = (ROOT / ".github/workflows/daily-report.yml").read_text()
-        self.assertIn('0,20,40 13 * * 1-5', daily)
+        for minute in (7, 27, 47):
+            self.assertIn(f'cron: "{minute} 13 * * 1-5"', daily)
         self.assertIn("refs/heads/main", daily)
         self.assertNotIn("git push", daily)
 
