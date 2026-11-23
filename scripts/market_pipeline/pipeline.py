@@ -8,9 +8,10 @@ from urllib.parse import urlparse
 from .alerts import evaluate
 from .clock import TAIPEI, PUBLICATION_CUTOFF, taipei_time
 from .news import collect_news
+from .official_calendar import official_schedule
 from .monitor import market_monitor, related_industry_news
 from .risk import classify_stock
-from .sources import DATASETS, FINMIND, HOLIDAYS, HttpClient, SourceError, compare_official, government_bank, iso_date, normalize_finmind, official_record, official_snapshots
+from .sources import DATASETS, FINMIND, HttpClient, SourceError, compare_official, government_bank, iso_date, normalize_finmind, official_record, official_snapshots
 
 ROOT = Path(__file__).resolve().parents[2]
 PRIVATE_KEYS = {"shares", "quantity", "averagecost", "cost", "average_cost", "gainlossrate", "unrealizedpnlrate", "unrealizedpnl", "marketvalue", "totalmarketvalue", "totalunrealizedpnl", "overallreturnrate", "token", "authorization", "positions", "持有股數", "成本均價", "損益"}
@@ -79,22 +80,10 @@ def calendar_context(client, now, start, closure_overrides=None):
         issues.append("trading_calendar_unavailable")
     except (ValueError, KeyError, TypeError):
         issues.append("trading_calendar_unavailable")
-    closures, openings = set(), set()
-    covered = False
-    try:
-        holiday_rows = client.get(HOLIDAYS)
-        if not isinstance(holiday_rows, list) or not holiday_rows:
-            raise ValueError("invalid_calendar")
-        for row in holiday_rows:
-            day = iso_date(row["Date"])
-            covered = covered or day[:4] == today[:4]
-            text = row["Name"] + row.get("Description", "")
-            if "開始交易" in text or "最後交易" in text:
-                openings.add(day)
-            elif "放假" in text or "休市" in text or "無交易" in text or "補假" in text:
-                closures.add(day)
-    except (SourceError, ValueError, KeyError, TypeError):
-        issues.append("official_calendar_unavailable")
+    schedule, calendar_sources, uncovered, disputed = official_schedule(
+        client, ROOT / "config", date.fromisoformat(start).year, now.year)
+    closures = {day for day, opened in schedule.items() if not opened}
+    openings = {day for day, opened in schedule.items() if opened}
     override_sources = []
     if closure_overrides is None:
         closure_overrides = load_market_closures(start, today)
@@ -102,9 +91,11 @@ def calendar_context(client, now, start, closure_overrides=None):
         source = urlparse(entry["source"])
         if source.scheme != "https" or source.hostname not in ("www.twse.com.tw", "www.tpex.org.tw") or not entry.get("reason"):
             raise ValueError("official_closure_evidence_required")
-        closures.add(iso_date(entry["date"]))
+        day = iso_date(entry["date"])
+        closures.add(day)
+        disputed.discard(day)
         override_sources.append(entry["source"])
-    days = [day for day in days if day <= eligible_end and day not in closures and (date.fromisoformat(day).weekday() < 5 or day in openings)]
+    days = [day for day in days if day <= eligible_end and day not in closures and day not in disputed and (date.fromisoformat(day).weekday() < 5 or day in openings)]
     is_closed = today in closures or (date.fromisoformat(today).weekday() >= 5 and today not in openings)
     if is_closed:
         target = max((day for day in days if day < today), default=None)
@@ -115,11 +106,13 @@ def calendar_context(client, now, start, closure_overrides=None):
     else:
         target = today
         status = "trading_day" if today in days else "awaiting_confirmation"
-    if not covered:
+    if disputed:
+        issues.append("official_calendar_conflicting_dates")
+    if uncovered:
         issues.append("official_calendar_year_unverified")
     if target is None:
         issues.append("no_confirmed_previous_session")
-    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "timezone": "Asia/Taipei", "evaluatedAt": now.isoformat(), "publicationCutoff": "15:30", "eligibleThrough": eligible_end, "sources": ["FinMind/TaiwanStockTradingDate", HOLIDAYS, *override_sources]}
+    return {"requestedDate": today, "targetDate": target, "status": status, "dates": days, "issues": issues, "diagnostic": diagnostic, "timezone": "Asia/Taipei", "evaluatedAt": now.isoformat(), "publicationCutoff": "15:30", "eligibleThrough": eligible_end, "sources": ["FinMind/TaiwanStockTradingDate", *calendar_sources, *override_sources]}
 
 
 def load_split_suspensions(path):
